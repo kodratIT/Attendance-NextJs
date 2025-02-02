@@ -85,11 +85,11 @@ const VerticalMenu =  ({ dictionary, scrollMenu }: Props) => {
         <MenuItem href='/locations' icon={<i className='tabler-smart-home' />}>
           Locations
         </MenuItem>
-        <MenuItem href='/about' icon={<i className='tabler-info-circle' />}>
-          About
+        <MenuItem href='/about' icon={<i className='tabler-users' />}>
+          Users
         </MenuItem>
 
-        <SubMenu label='Roles & Permissions' icon={<i className='tabler-smart-home' />}>
+        <SubMenu label='Roles & Permissions' icon={<i className='tabler-lock' />}>
           <MenuItem href={`/roles`}>
             Roles
           </MenuItem>

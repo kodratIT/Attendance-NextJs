@@ -42,8 +42,21 @@ import PermissionDialog from '@components/dialogs/permission-dialog'
 import OpenDialogOnElementClick from '@components/dialogs/OpenDialogOnElementClick'
 
 // Style Imports
+import type { ThemeColor } from '@core/types'
 import tableStyles from '@core/styles/table.module.css'
 
+type Colors = {
+  [key: string]: ThemeColor
+}
+
+// Vars
+const colors: Colors = {
+  support: 'info',
+  Pegawai: 'success',
+  attendance: 'warning',
+  Administrator: 'primary',
+  'restricted-user': 'error'
+}
 // Column Definitions Helper
 const columnHelper = createColumnHelper<PermissionRowType>()
 
@@ -96,10 +109,10 @@ const Permissions = ({ permissionsData }: { permissionsData?: PermissionRowType[
 
         return Array.isArray(assignedTo) ? (
           assignedTo.map((item, index) => (
-            <Chip key={index} variant="tonal" label={item} color="primary" size="small" className="capitalize mie-4" />
+            <Chip key={index} variant="tonal" label={item.name} color={colors[item.name]} size="small" className="capitalize mie-4" />
           ))
         ) : (
-          <Chip variant="tonal" label={assignedTo} color="primary" size="small" className="capitalize" />
+          <Chip variant="tonal" label={assignedTo} color={colors[assignedTo]} size="small" className="capitalize" />
         )
       },
     }),

@@ -25,6 +25,7 @@ import tableStyles from '@core/styles/table.module.css';
 interface RoleDialogProps {
   open: boolean;
   setOpen: (open: boolean) => void;
+  state?: 'add' | 'edit' | 'delete';
   title?: string;
   roleId?: string;
   refreshData?: () => void;
@@ -45,15 +46,18 @@ interface RoleData {
   };
 }
 
-const RoleDialog = ({ open, setOpen, title, roleId, refreshData = () => {} }: RoleDialogProps) => {
+const RoleDialog = ({ open, setOpen, state = 'add', title, roleId, refreshData = () => {} }: RoleDialogProps) => {
   const [permissions, setPermissions] = useState<PermissionData[]>([]);
   const [selectedPermissions, setSelectedPermissions] = useState<{ [key: string]: string[] }>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<boolean>(false);
   const [roleName, setRoleName] = useState<string>(title || '');
   const [selectAll, setSelectAll] = useState<boolean>(false);
 
   useEffect(() => {
+    if (!open) return;
+
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -75,13 +79,9 @@ const RoleDialog = ({ open, setOpen, title, roleId, refreshData = () => {} }: Ro
           rolePermissions[perm.id] = [];
         });
 
-        // Pastikan roleRes tidak undefined/null dan memiliki data yang benar
-        const rolesData = roleRes?.data?.data ?? null;
-        console.log("Roles Data:", rolesData);
-
-        if (rolesData && rolesData.permissions && Array.isArray(rolesData.permissions)) {
-          setRoleName(rolesData.name);
-          rolesData.permissions.forEach((perm) => {
+        if (roleRes?.data?.data) {
+          setRoleName(roleRes.data.data.name);
+          roleRes.data.data.permissions.forEach((perm) => {
             rolePermissions[perm.id] = perm.actions || [];
           });
         }
@@ -100,7 +100,7 @@ const RoleDialog = ({ open, setOpen, title, roleId, refreshData = () => {} }: Ro
       }
     };
 
-    if (open) fetchData();
+    fetchData();
   }, [open, roleId]);
 
   const togglePermission = (permissionId: string, action: string) => {
@@ -150,16 +150,13 @@ const RoleDialog = ({ open, setOpen, title, roleId, refreshData = () => {} }: Ro
         permissions: Object.entries(selectedPermissions).map(([id, actions]) => ({ id, actions })),
       };
 
-      if (roleId) {
+      if (state === 'edit' && roleId) {
         await axios.put(`${API_URL}/api/roles/${roleId}`, payload);
-      } else {
+      } else if (state === 'add') {
         await axios.post(`${API_URL}/api/roles`, payload);
       }
 
-      if (typeof refreshData === 'function') {
-        refreshData();
-      }
-
+      refreshData();
       setOpen(false);
     } catch (error) {
       console.error('Error saving role:', error);
@@ -168,75 +165,128 @@ const RoleDialog = ({ open, setOpen, title, roleId, refreshData = () => {} }: Ro
     }
   };
 
+  
+  const handleClose = () => {
+    setOpen(false)
+  }
+
+/*************  ✨ Codeium Command ⭐  *************/
+  /**
+   * Delete a role from database. This function will be called when the
+   * user clicks the delete button in the Role Dialog.
+   * @async
+   * @function
+   * @param {string} roleId - The ID of role to be deleted.
+   * @returns {Promise<void>}
+   */
+/******  10659be6-d750-4dcb-ad28-65953e9cf804  *******/  
+const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+      await axios.delete(`${API_URL}/api/roles/${roleId}`);
+      refreshData()
+      handleClose()
+    } catch (error) {
+      console.error(error)
+      alert('Error deleting permission.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
-    <Dialog
-      fullWidth
-      maxWidth="md"
-      scroll="body"
-      open={open}
-      onClose={() => setOpen(false)}
-      sx={{ '& .MuiDialog-paper': { overflow: 'visible' } }}
-    >
-      <DialogCloseButton onClick={() => setOpen(false)} disableRipple >
+    <Dialog  fullWidth={state !== 'delete'} 
+      maxWidth={state === 'delete' ? 'sm' : 'md'} 
+      scroll="body" 
+      open={open} onClose={() => setOpen(false)} 
+      sx={{ '& .MuiDialog-paper': { overflow: 'visible' } }}>
+      <DialogCloseButton onClick={() => setOpen(false)} disableRipple>
         <i className="tabler-x" />
       </DialogCloseButton>
+  
+      {/* Kondisi untuk Judul Dialog */}
       <DialogTitle variant="h4" className="flex flex-col gap-2 text-center sm:pbs-16 sm:pbe-6 sm:pli-16">
-        {roleId ? 'Edit Role' : 'Add Role'}
+        {state === 'delete' ? 'Delete Role' : roleId ? 'Edit Role' : 'Add Role'}
         <Typography component="span" className="flex flex-col text-center">
-          Set Role Permissions
+          {state === 'delete' ? "Are you sure you want to delete this role? This action cannot be undone." : "Set Role Permissions"}
         </Typography>
       </DialogTitle>
-      <DialogContent className="overflow-visible flex flex-col gap-6 pbs-0 sm:pli-16">
-        <CustomTextField
-          label="Role Name"
-          variant="outlined"
-          fullWidth
-          placeholder="Enter Role Name"
-          value={roleName || ''}
-          onChange={(e) => setRoleName(e.target.value)}
-        />
-        {loading ? (
-          <div className="flex justify-center items-center min-h-[150px]">
-            <CircularProgress />
-          </div>
-        ) : (
-          <>
-            <Typography variant="h5">Role Permissions</Typography>
-            <FormControlLabel
-              control={<Checkbox checked={selectAll} onChange={toggleSelectAll} />}
-              label="Select All Permissions and Actions"
+  
+      {/* Jika state === 'delete', tampilkan informasi konfirmasi */}
+      {state === 'delete' ? (
+        <>
+          <DialogContent className="text-center">
+            <Typography variant="body1" color="error">
+              Once deleted, this role cannot be recovered.
+            </Typography>
+          </DialogContent>
+          <DialogActions className='flex justify-center pbs-4 sm:pli-16'>
+          <Button variant="outlined" color="error" onClick={handleDelete}>
+            {deleting ? <CircularProgress color='inherit' size={20} /> : 'Confirm Delete'}
+          </Button>
+          <Button onClick={() => setOpen(false)} variant="tonal" color="secondary">
+            Cancel
+          </Button>
+          </DialogActions>
+        </>
+      ) : (
+        <>
+          <DialogContent className="overflow-visible flex flex-col gap-6 pbs-0 sm:pli-16">
+            <CustomTextField
+              label="Role Name"
+              variant="outlined"
+              fullWidth
+              placeholder="Enter Role Name"
+              value={roleName || ''}
+              onChange={(e) => setRoleName(e.target.value)}
             />
-            <table className={tableStyles.table}>
-              <tbody>
-                {permissions.map((permission) => (
-                  <tr key={permission.id}>
-                    <td>
-                      <Typography className="font-medium">{permission.name}</Typography>
-                    </td>
-                    {permission.actions.map((action) => (
-                      <td key={action}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={!!selectedPermissions[permission.id]?.includes(action)}
-                              onChange={() => togglePermission(permission.id, action)}
+            {loading ? (
+              <div className="flex justify-center items-center min-h-[150px]">
+                <CircularProgress />
+              </div>
+            ) : (
+              <>
+                <Typography variant="h5">Role Permissions</Typography>
+                <FormControlLabel
+                  control={<Checkbox checked={selectAll} onChange={toggleSelectAll} />}
+                  label="Select All Permissions and Actions"
+                />
+                <table className={tableStyles.table}>
+                  <tbody>
+                    {permissions.map((permission) => (
+                      <tr key={permission.id}>
+                        <td><Typography className="font-medium">{permission.name}</Typography></td>
+                        {permission.actions.map((action) => (
+                          <td key={action}>
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  checked={!!selectedPermissions[permission.id]?.includes(action)}
+                                  onChange={() => togglePermission(permission.id, action)}
+                                />
+                              }
+                              label={action}
                             />
-                          }
-                          label={action}
-                        />
-                      </td>
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button variant="contained" onClick={handleSubmit} disabled={saving}>{saving ? <CircularProgress color="inherit" size={20} /> : 'Submit'}</Button>
-        <Button variant="tonal" color="secondary" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-      </DialogActions>
+                  </tbody>
+                </table>
+              </>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button variant="contained" onClick={handleSubmit} disabled={saving}>
+              {saving ? <CircularProgress color="inherit" size={20} /> : 'Submit'}
+            </Button>
+            <Button variant="tonal" color="secondary" onClick={() => setOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+          </DialogActions>
+        </>
+      )}
     </Dialog>
   );
 };

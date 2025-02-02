@@ -1,79 +1,64 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { doc, updateDoc, getDoc,deleteDoc,Timestamp  } from 'firebase/firestore'
-import { firestore } from '@/libs/firebase/firebase' // Pastikan path ini sesuai dengan konfigurasi Firestore Anda
+import { NextRequest, NextResponse } from 'next/server';
+import { doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { firestore } from '@/libs/firebase/firebase';
 
+interface PermissionPayload {
+  name: string;
+}
+
+// ✅ **UPDATE PERMISSION (PUT - Lebih Cepat)**
 export async function PUT(req: NextRequest) {
   try {
-    // Ambil ID dari URL
-    const urlParts = req.nextUrl.pathname.split('/') // Ambil path URL
-    const id = urlParts[urlParts.length - 1] // ID ada di bagian akhir URL
-    console.log('Received PUT request for ID:', id)
-     
-    // Parse JSON body dari request
-    const { name } = await req.json()
-    console.log('Received Data:', { id, name })
-
-    // Validasi input
-    if (!id || !name) {
-      console.error('Validation Failed: Missing ID or Name')
-      return NextResponse.json(
-        { message: 'ID and name are required' },
-        { status: 400 }
-      )
-    }
-
-    // Ambil referensi dokumen berdasarkan ID
-    const permissionRef = doc(firestore, 'permissions', id)
-
-    // Cek apakah dokumen dengan ID tersebut ada di Firestore
-    const docSnap = await getDoc(permissionRef)
-    if (!docSnap.exists()) {
-      console.error('Permission Not Found:', id)
-      return NextResponse.json(
-        { message: 'Permission not found' },
-        { status: 404 }
-      )
-    }
-
-    // Lakukan update di Firestore
-    console.log('Updating Permission:', id, 'with Name:', name)
-    await updateDoc(permissionRef, { 
-      name,
-      updated_at: Timestamp.now(),
-      
-    })
-
-    console.log('Permission Updated Successfully:', id)
-
-    return NextResponse.json(
-      { message: 'Permission updated successfully' },
-      { status: 200 }
-    )
-  } catch (error) {
-    console.error('Error updating permission:', error)
-    return NextResponse.json(
-      { message: 'Failed to update permission', error: error },
-      { status: 500 }
-    )
-  }
-}
-
-export async function DELETE(req: NextRequest) {
-  try {
-    // Ambil ID dari URL
-    const urlParts = req.nextUrl.pathname.split('/');
-    const id = urlParts[urlParts.length - 1];
-
+    const id = req.nextUrl.pathname.split('/').pop();
     if (!id) {
-      return NextResponse.json({ message: 'ID is required' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'ID is required' }, { status: 400 });
     }
+
+    // Parse JSON body dari request
+    const payload: PermissionPayload = await req.json();
+    if (!payload.name || typeof payload.name !== 'string') {
+      return NextResponse.json({ success: false, message: 'Valid name is required' }, { status: 400 });
+    }
+
+    console.log(`🔄 Updating Permission: ${id} with Name: ${payload.name}`);
 
     const permissionRef = doc(firestore, 'permissions', id);
-    await deleteDoc(permissionRef);
-    return NextResponse.json({ message: 'Permission deleted successfully' }, { status: 200 });
-  } catch (error) {
-    console.error('Error deleting permission:', error);
-    return NextResponse.json({ message: 'Failed to delete permission' }, { status: 500 });
+
+    // ✅ **Update langsung tanpa cek dokumen jika yakin dokumen ada**
+    await updateDoc(permissionRef, {
+      name: payload.name,
+      updated_at: Timestamp.now(),
+    });
+
+    console.log(`✅ Permission ${id} updated successfully`);
+
+    return NextResponse.json({ success: true, message: 'Permission updated successfully' }, { status: 200 });
+
+  } catch (error: any) {
+    console.error(`❌ Error updating permission ${req.nextUrl.pathname}:`, error);
+    return NextResponse.json({ success: false, message: 'Failed to update permission', error: error.message }, { status: 500 });
   }
 }
 
+// ✅ **DELETE PERMISSION (Lebih Cepat)**
+export async function DELETE(req: NextRequest) {
+  try {
+    const id = req.nextUrl.pathname.split('/').pop();
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'ID is required' }, { status: 400 });
+    }
+
+    console.log(`🗑 Deleting Permission ID: ${id}`);
+
+    // ✅ **Langsung delete tanpa perlu cek keberadaan dokumen (Firestore tidak error jika dokumen tidak ada)**
+    await deleteDoc(doc(firestore, 'permissions', id));
+
+    console.log(`✅ Permission ${id} deleted successfully`);
+
+    return NextResponse.json({ success: true, message: 'Permission deleted successfully' }, { status: 200 });
+
+  } catch (error: any) {
+    console.error(`❌ Error deleting permission ${req.nextUrl.pathname}:`, error);
+    return NextResponse.json({ success: false, message: 'Failed to delete permission', error: error.message }, { status: 500 });
+  }
+}

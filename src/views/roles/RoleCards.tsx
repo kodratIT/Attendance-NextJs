@@ -121,14 +121,19 @@ const RoleCards = ({ roleData: initialRoleData }: RoleCardsProps) => {
                       element={Typography}
                       elementProps={typographyProps}
                       dialog={RoleDialog}
-                      dialogProps={{ title: item.name, roleId: item.id, refreshData: fetchRoles }}
+                      dialogProps={{state: 'edit', title: item.name, roleId: item.id, refreshData: fetchRoles }}
                     />
                   </div>
-                  {/* <div className="absolute bottom-2 right-2 flex gap-2"> */}
-                <IconButton onClick={() => handleDeleteRole(item.id)} color="error">
-                  <i className="tabler-trash" />
-                </IconButton>
-              {/* </div> */}
+                  <OpenDialogOnElementClick
+                    element={IconButton}
+                    elementProps={{
+                      onClick: () => handleDeleteRole(item.id),
+                      color: 'error',
+                      children: <i className="tabler-trash" />,
+                    }}
+                    dialog={RoleDialog}
+                    dialogProps={{state: 'delete', title: item.name, roleId: item.id, refreshData: fetchRoles }}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -144,7 +149,7 @@ const RoleCards = ({ roleData: initialRoleData }: RoleCardsProps) => {
           element={Card} 
           elementProps={addRoleCardProps} 
           dialog={RoleDialog} 
-          dialogProps={{ refreshData: fetchRoles }}
+          dialogProps={{state: 'add', refreshData: fetchRoles }}
         />
       </Grid>
     </Grid>

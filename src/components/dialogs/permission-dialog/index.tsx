@@ -55,11 +55,10 @@ const AddContent = ({ handleClose, refreshData }: { handleClose: () => void; ref
     <>
       <DialogContent className="overflow-visible pbs-0 sm:pli-16">
         <CustomTextField fullWidth label="Permission Name" id="permission-name" className="mbe-2" />
-        <FormControlLabel control={<Checkbox id="core-permission" />} label="Set as core permission" />
       </DialogContent>
       <DialogActions className="flex justify-center pbs-0 sm:pbe-16 sm:pli-16">
         <Button variant="contained" onClick={handleCreate} disabled={loading}>
-          {loading ? <CircularProgress size={20} /> : 'Create Permission'}
+          {loading ? <CircularProgress color='inherit' size={20} /> : 'Create Permission'}
         </Button>
         <Button onClick={handleClose} variant="tonal" color="secondary">
           Discard
