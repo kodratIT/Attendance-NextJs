@@ -27,7 +27,7 @@ const Layout = async ({ children }: ChildrenType) => {
   const direction = 'ltr'
   const mode = getMode()
   const systemMode = getSystemMode()
-  const dictionary = getDictionary("en")
+  const dictionary = await getDictionary("en")
 
 
   return (

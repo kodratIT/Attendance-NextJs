@@ -1,27 +1,21 @@
-'use client'
-
-// React Imports
 import { forwardRef } from 'react'
-
-// Next Imports
 import Link from 'next/link'
 import type { LinkProps } from 'next/link'
 
-// Type Imports
-import type { ChildrenType } from '../types'
+type RouterLinkProps = LinkProps & {
+  className?: string
+  children: React.ReactNode
+}
 
-type RouterLinkProps = LinkProps &
-  Partial<ChildrenType> & {
-    className?: string
-  }
-
-export const RouterLink = forwardRef((props: RouterLinkProps, ref: any) => {
-  // Props
-  const { href, className, ...other } = props
-
+// ✅ Gunakan `forwardRef` agar ref bisa diteruskan
+export const RouterLink = forwardRef<HTMLAnchorElement, RouterLinkProps>(({ href, className, children, ...other }, ref) => {
   return (
-    <Link ref={ref} href={href} className={className} {...other}>
-      {props.children}
+    <Link href={href} passHref legacyBehavior>
+      <a ref={ref} className={className} {...other}>
+        {children}
+      </a>
     </Link>
   )
 })
+
+RouterLink.displayName = 'RouterLink'

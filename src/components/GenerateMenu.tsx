@@ -33,7 +33,6 @@ export const GenerateVerticalMenu = ({ menuData }: { menuData: VerticalMenuDataT
 
       // Check if the current item is a section
       if (menuSectionItem.isSection) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { children, isSection, ...rest } = menuSectionItem
 
         // If it is, return a MenuSection component and call generateMenu with the current menuSectionItem's children

@@ -1,6 +1,6 @@
 // pages/api/attendance/index.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { firestore } from '../../lib/firebase';
+import { firestore } from '@/libs/firebase/firebase';
 import { collection, addDoc, getDocs, updateDoc, doc } from 'firebase/firestore';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
