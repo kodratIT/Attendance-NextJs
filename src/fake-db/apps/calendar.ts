@@ -1,5 +1,5 @@
 // Third-party Imports
-import type { EventInput } from '@fullcalendar/core'
+import type { EventInput } from @fullcalendar/core'
 
 // Vars
 const date = new Date()
