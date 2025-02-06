@@ -2,9 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { firestore } from '@/libs/firebase/firebase';
 import { collection, getDocs, addDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { timeSpentToDate } from '@/utils/dateUtils';
+import { createCORSHeaders } from '@/utils/cors';
 
 interface PermissionPayload {
   name: string;
+}
+
+// ✅ **OPTIONS Handler untuk Preflight Request**
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: createCORSHeaders(),
+  });
 }
 
 // ✅ **GET ALL PERMISSIONS (Lebih Cepat)**
@@ -22,11 +31,17 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json(data, { status: 200 });
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: createCORSHeaders(),
+    });
 
   } catch (error: any) {
     console.error('❌ Error fetching permissions:', error);
-    return NextResponse.json({ success: false, message: 'Failed to fetch permissions', error: error.message }, { status: 500 });
+    return new Response(JSON.stringify({ success: false, message: 'Failed to fetch permissions', error: error.message }), {
+      status: 500,
+      headers: createCORSHeaders(),
+    });
   }
 }
 
@@ -37,7 +52,10 @@ export async function POST(req: NextRequest) {
 
     // Validasi input
     if (!payload.name || typeof payload.name !== 'string') {
-      return NextResponse.json({ success: false, message: 'Invalid data: name must be a string' }, { status: 400 });
+      return new Response(JSON.stringify({ success: false, message: 'Invalid data: name must be a string' }), {
+        status: 400,
+        headers: createCORSHeaders(),
+      });
     }
 
     console.log(`📝 Creating new permission: ${payload.name}`);
@@ -56,11 +74,17 @@ export async function POST(req: NextRequest) {
 
     console.log(`✅ Permission ${payload.name} created successfully with ID: ${permissionRef.id}`);
 
-    return NextResponse.json({ success: true, message: 'Permission added successfully', id: permissionRef.id, name: payload.name }, { status: 201 });
+    return new Response(JSON.stringify({ success: true, message: 'Permission added successfully', id: permissionRef.id, name: payload.name }), {
+      status: 201,
+      headers: createCORSHeaders(),
+    });
 
   } catch (error: any) {
     console.error('❌ Error adding permission:', error);
-    return NextResponse.json({ success: false, message: 'Failed to add permission', error: error.message }, { status: 500 });
+    return new Response(JSON.stringify({ success: false, message: 'Failed to add permission', error: error.message }), {
+      status: 500,
+      headers: createCORSHeaders(),
+    });
   }
 }
 
@@ -69,7 +93,10 @@ export async function DELETE(req: NextRequest) {
   try {
     const id = req.nextUrl.pathname.split('/').pop();
     if (!id) {
-      return NextResponse.json({ success: false, message: 'ID is required' }, { status: 400 });
+      return new Response(JSON.stringify({ success: false, message: 'ID is required' }), {
+        status: 400,
+        headers: createCORSHeaders(),
+      });
     }
 
     console.log(`🗑 Deleting Permission ID: ${id}`);
@@ -78,10 +105,16 @@ export async function DELETE(req: NextRequest) {
 
     console.log(`✅ Permission ${id} deleted successfully`);
 
-    return NextResponse.json({ success: true, message: 'Permission deleted successfully' }, { status: 200 });
+    return new Response(JSON.stringify({ success: true, message: 'Permission deleted successfully' }), {
+      status: 200,
+      headers: createCORSHeaders(),
+    });
 
   } catch (error: any) {
     console.error(`❌ Error deleting permission ${req.nextUrl.pathname}:`, error);
-    return NextResponse.json({ success: false, message: 'Failed to delete permission', error: error.message }, { status: 500 });
+    return new Response(JSON.stringify({ success: false, message: 'Failed to delete permission', error: error.message }), {
+      status: 500,
+      headers: createCORSHeaders(),
+    });
   }
 }
