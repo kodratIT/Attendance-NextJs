@@ -78,6 +78,22 @@ export async function PUT(req: NextRequest) {
       updated_at: Timestamp.now(),
     });
 
+    // / ** Perbarui setiap lokasi untuk menambahkan assignedTo **
+    const assignedToData = { id, name: payload.name };
+
+    const locationUpdates = payload.locations.map(async (location) => {
+      const locationId = typeof location === 'string' ? location : location.id.toString();
+      if (locationId) {
+        const locationRef = doc(firestore, 'locations', locationId);
+        return updateDoc(locationRef, { assignedTo: assignedToData });
+      } else {
+        console.warn(`⚠️ Skipping invalid location:`, location);
+        return Promise.resolve();
+      }
+    });
+
+    // ** Jalankan semua update secara paralel **
+    await Promise.all(locationUpdates);
     console.log(`✅ Area ${id} updated successfully`);
     return NextResponse.json({ success: true, message: 'Area updated successfully' }, { status: 200 });
   } catch (error: any) {
