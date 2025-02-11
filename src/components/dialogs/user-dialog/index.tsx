@@ -219,11 +219,6 @@ const UserDialog = ({ open, setOpen, state = 'add', data, refreshData }: UserDia
   };
 
   return (
-    
-    <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-
-    </Dialog>
-
     <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
       <DialogTitle>
         {state === 'delete' ? 'Delete User' : state === 'edit' ? 'Edit User' : 'Add New User'}
