@@ -224,156 +224,156 @@ const UserDialog = ({ open, setOpen, state = 'add', data, refreshData }: UserDia
 
     </Dialog>
 
-    // <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-    //   <DialogTitle>
-    //     {state === 'delete' ? 'Delete User' : state === 'edit' ? 'Edit User' : 'Add New User'}
-    //   </DialogTitle>
-    //   <DialogContent>
-    //     {loading && state !== 'delete' ? (
-    //       <Alert severity="info">Loading data...</Alert>
-    //     ) : state === 'delete' ? (
-    //       <Typography variant="body1">
-    //         Are you sure you want to delete this user? This action cannot be undone.
-    //       </Typography>
-    //     ) : (
-    //       <>
-    //         {/* Input for name */}
-    //         <TextField
-    //           label="Name"
-    //           value={name}
-    //           onChange={(e) => setName(e.target.value)}
-    //           fullWidth
-    //           margin="normal"
-    //           required
-    //           error={!!errors.name}
-    //           helperText={errors.name}
-    //         />
+    <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
+      <DialogTitle>
+        {state === 'delete' ? 'Delete User' : state === 'edit' ? 'Edit User' : 'Add New User'}
+      </DialogTitle>
+      <DialogContent>
+        {loading && state !== 'delete' ? (
+          <Alert severity="info">Loading data...</Alert>
+        ) : state === 'delete' ? (
+          <Typography variant="body1">
+            Are you sure you want to delete this user? This action cannot be undone.
+          </Typography>
+        ) : (
+          <>
+            {/* Input for name */}
+            <TextField
+              label="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              fullWidth
+              margin="normal"
+              required
+              error={!!errors.name}
+              helperText={errors.name}
+            />
 
-    //         {/* Input for email */}
-    //         <TextField
-    //           label="Email"
-    //           value={email}
-    //           onChange={(e) => setEmail(e.target.value)}
-    //           fullWidth
-    //           margin="normal"
-    //           required
-    //           error={!!errors.email}
-    //           helperText={errors.email}
-    //         />
+            {/* Input for email */}
+            <TextField
+              label="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              fullWidth
+              margin="normal"
+              required
+              error={!!errors.email}
+              helperText={errors.email}
+            />
 
-    //         {/* Dropdown for role */}
-    //         <FormControl fullWidth margin="normal" required error={!!errors.roleId}>
-    //           <InputLabel>Role</InputLabel>
-    //           <Select
-    //             value={roleId}
-    //             onChange={(e) => setRoleId(e.target.value as string)}
-    //             label="Role"
-    //           >
-    //             {roles.map((role) => (
-    //               <MenuItem key={role.id} value={role.id}>
-    //                 {role.name}
-    //               </MenuItem>
-    //             ))}
-    //           </Select>
-    //           {errors.roleId && <Typography color="error">{errors.roleId}</Typography>}
-    //         </FormControl>
+            {/* Dropdown for role */}
+            <FormControl fullWidth margin="normal" required error={!!errors.roleId}>
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={roleId}
+                onChange={(e) => setRoleId(e.target.value as string)}
+                label="Role"
+              >
+                {roles.map((role) => (
+                  <MenuItem key={role.id} value={role.id}>
+                    {role.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.roleId && <Typography color="error">{errors.roleId}</Typography>}
+            </FormControl>
 
-    //         {/* Multi-select for areas */}
-    //         <FormControl fullWidth margin="normal" required error={!!errors.areaIds}>
-    //           <InputLabel>Areas</InputLabel>
-    //           <Select
-    //             multiple
-    //             value={areaIds}
-    //             onChange={(e) => setAreaIds(e.target.value as string[])}
-    //             renderValue={(selected) => (
-    //               <div className="flex flex-wrap gap-1">
-    //                 {(selected as string[]).map((id) => {
-    //                   const area = areas.find((a) => a.id === id);
-    //                   return area ? (
-    //                     <Chip key={area.id} label={area.name} size="small" />
-    //                   ) : null;
-    //                 })}
-    //               </div>
-    //             )}
-    //             label="Areas"
-    //           >
-    //             {areas.map((area) => (
-    //               <MenuItem key={area.id} value={area.id}>
-    //                 {area.name}
-    //               </MenuItem>
-    //             ))}
-    //           </Select>
-    //           {errors.areaIds && <Typography color="error">{errors.areaIds}</Typography>}
-    //         </FormControl>
+            {/* Multi-select for areas */}
+            <FormControl fullWidth margin="normal" required error={!!errors.areaIds}>
+              <InputLabel>Areas</InputLabel>
+              <Select
+                multiple
+                value={areaIds}
+                onChange={(e) => setAreaIds(e.target.value as string[])}
+                renderValue={(selected) => (
+                  <div className="flex flex-wrap gap-1">
+                    {(selected as string[]).map((id) => {
+                      const area = areas.find((a) => a.id === id);
+                      return area ? (
+                        <Chip key={area.id} label={area.name} size="small" />
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                label="Areas"
+              >
+                {areas.map((area) => (
+                  <MenuItem key={area.id} value={area.id}>
+                    {area.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.areaIds && <Typography color="error">{errors.areaIds}</Typography>}
+            </FormControl>
 
-    //         {/* Multi-select for shifts */}
-    //         <FormControl fullWidth margin="normal" required error={!!errors.shiftIds}>
-    //           <InputLabel>Shifts</InputLabel>
-    //           <Select
-    //             multiple
-    //             value={shiftIds}
-    //             onChange={(e) => setShiftIds(e.target.value as string[])}
-    //             renderValue={(selected) => (
-    //               <div className="flex flex-wrap gap-1">
-    //                 {(selected as string[]).map((id) => {
-    //                   const shift = shifts.find((s) => s.id === id);
-    //                   return shift ? (
-    //                     <Chip key={shift.id} label={shift.name} size="small" />
-    //                   ) : null;
-    //                 })}
-    //               </div>
-    //             )}
-    //             label="Shifts"
-    //           >
-    //             {shifts.map((shift) => (
-    //               <MenuItem key={shift.id} value={shift.id}>
-    //                 {shift.name}
-    //               </MenuItem>
-    //             ))}
-    //           </Select>
-    //           {errors.shiftIds && <Typography color="error">{errors.shiftIds}</Typography>}
-    //         </FormControl>
-    //       </>
-    //     )}
-    //   </DialogContent>
-    //   <DialogActions>
-    //     {/* Submit or Delete button */}
-    //     {state === 'delete' ? (
-    //       <Button
-    //         onClick={handleDelete}
-    //         variant="outlined"
-    //         color="error"
-    //         disabled={deleting} // Disable tombol delete jika sedang menghapus
-    //       >
-    //         {deleting ? (
-    //           <CircularProgress className="center" color="inherit" size={24} />
-    //         ) : (
-    //           'Confirm Delete'
-    //         )}
-    //       </Button>
-    //     ) : (
-    //       <Button
-    //         onClick={handleSubmit}
-    //         variant="contained"
-    //         disabled={loading || saving} // Tombol akan disabled jika loading atau saving
-    //       >
-    //         {loading ? (
-    //           'Submit'
-    //         ) : saving ? (
-    //           <CircularProgress className="center" color="inherit" size={24} />
-    //         ) : (
-    //           'Submit'
-    //         )}
-    //       </Button>
-    //     )}
+            {/* Multi-select for shifts */}
+            <FormControl fullWidth margin="normal" required error={!!errors.shiftIds}>
+              <InputLabel>Shifts</InputLabel>
+              <Select
+                multiple
+                value={shiftIds}
+                onChange={(e) => setShiftIds(e.target.value as string[])}
+                renderValue={(selected) => (
+                  <div className="flex flex-wrap gap-1">
+                    {(selected as string[]).map((id) => {
+                      const shift = shifts.find((s) => s.id === id);
+                      return shift ? (
+                        <Chip key={shift.id} label={shift.name} size="small" />
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                label="Shifts"
+              >
+                {shifts.map((shift) => (
+                  <MenuItem key={shift.id} value={shift.id}>
+                    {shift.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.shiftIds && <Typography color="error">{errors.shiftIds}</Typography>}
+            </FormControl>
+          </>
+        )}
+      </DialogContent>
+      <DialogActions>
+        {/* Submit or Delete button */}
+        {state === 'delete' ? (
+          <Button
+            onClick={handleDelete}
+            variant="outlined"
+            color="error"
+            disabled={deleting} // Disable tombol delete jika sedang menghapus
+          >
+            {deleting ? (
+              <CircularProgress className="center" color="inherit" size={24} />
+            ) : (
+              'Confirm Delete'
+            )}
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSubmit}
+            variant="contained"
+            disabled={loading || saving} // Tombol akan disabled jika loading atau saving
+          >
+            {loading ? (
+              'Submit'
+            ) : saving ? (
+              <CircularProgress className="center" color="inherit" size={24} />
+            ) : (
+              'Submit'
+            )}
+          </Button>
+        )}
 
-    //     {/* Cancel button */}
-    //     <Button onClick={() => setOpen(false)} variant="tonal" disabled={saving || deleting}>
-    //       Cancel
-    //     </Button>
+        {/* Cancel button */}
+        <Button onClick={() => setOpen(false)} variant="tonal" disabled={saving || deleting}>
+          Cancel
+        </Button>
 
-    //   </DialogActions>
-    // </Dialog>
+      </DialogActions>
+    </Dialog>
   );
 };
 
