@@ -3,6 +3,7 @@ export type AttendanceRowType = {
     date: string;
     name: string;
     shifts: string;
+    areas: string;
     avatar: string;
     checkIn: {
       time: string;
