@@ -303,6 +303,7 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
 
       <Card>
         <TableFilters setData={setFilteredData} tableData={tableData} />
+        
         <div className='flex justify-between flex-col items-start md:flex-row md:items-center p-6 border-bs gap-4'>
           <CustomTextField
             select
