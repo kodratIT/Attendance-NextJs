@@ -80,15 +80,22 @@ const Locations = ({ locationsData }: { locationsData?: LocationRowType[] }) => 
     columnHelper.accessor('assignedTo', {
       header: 'Assigned To',
       cell: ({ row }) => {
-        const assignedTo = row.original.assignedTo;
-        if (!assignedTo || assignedTo.length === 0) {
+        let assignedTo = row.original.assignedTo;
+    
+        // Jika assignedTo bukan array, ubah menjadi array
+        if (!Array.isArray(assignedTo)) {
+          assignedTo = assignedTo ? [assignedTo] : [];
+        }
+    
+        if (assignedTo.length === 0) {
           return <Typography color="text.secondary">-</Typography>;
         }
+    
         return (
           <div className="flex flex-wrap gap-2">
-            {assignedTo.map((item, index) => (
+            {assignedTo.map((item) => (
               <Chip
-                key={index}
+                key={item.id}
                 variant="tonal"
                 label={item.name}
                 color="primary"
@@ -99,7 +106,7 @@ const Locations = ({ locationsData }: { locationsData?: LocationRowType[] }) => 
           </div>
         );
       },
-    }),
+    }),    
     columnHelper.accessor('longitude', {
       header: 'Longitude',
       cell: ({ row }) => <Typography>{row.original.longitude}</Typography>,

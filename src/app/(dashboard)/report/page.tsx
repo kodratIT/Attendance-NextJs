@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
 import type { AttendanceRowType } from '@/types/attendanceRowTypes';
-import AttendanceHistory from '@views/attendance';
+import ReportAttendance from '@views/report';
 import CircularProgress from '@mui/material/CircularProgress';
 import axios from 'axios';
 
-const getAttendanceData = async (): Promise<AttendanceRowType[]> => {
+const getReportData = async (): Promise<AttendanceRowType[]> => {
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL; // Pastikan ini terdefinisi
 
@@ -51,20 +51,20 @@ const Loading = () => (
 );
 
 // Komponen utama untuk fetch dan menampilkan data
-const AttendanceApp = async () => {
-  const data2 = await getAttendanceData();
+const ReportApp = async () => {
+  const data2 = await getReportData();
 
   console.log("data dari api", data2)
-  return <AttendanceHistory tableData={data2} />;
+  return <ReportAttendance tableData={data2} />;
 };
 
 // Bungkus dengan Suspense agar loading muncul di tengah content
-const AttendancePage = () => {
+const ReportPage = () => {
   return (
     <Suspense fallback={<Loading />}>
-      <AttendanceApp />
+      <ReportApp />
     </Suspense>
   );
 };
 
-export default AttendancePage;
+export default ReportPage;

@@ -131,19 +131,19 @@ const ShiftDialog = ({ open, setOpen, state = 'add', title, shiftId, data, refre
       <DialogActions>
         {state === 'delete' ? (
           <>
-            <Button onClick={handleDelete} disabled={deleting}>
-              {deleting ? 'Deleting...' : 'Confirm Delete'}
+         <Button variant="outlined" color="error" onClick={handleSubmit} disabled={saving}>
+              {deleting ? <CircularProgress color="inherit" size={20} /> : 'Confirm Delete'}
             </Button>
-            <Button onClick={() => setOpen(false)} disabled={deleting}>
+            <Button variant="tonal"  onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
           </>
         ) : (
           <>
-            <Button onClick={handleSubmit} disabled={saving}>
-              {saving ? 'Saving...' : 'Submit'}
+            <Button variant="contained" onClick={handleSubmit} disabled={saving}>
+              {saving ? <CircularProgress color="inherit" size={20} /> : 'Submit'}
             </Button>
-            <Button onClick={() => setOpen(false)} disabled={saving}>
+            <Button variant="tonal"  onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
           </>

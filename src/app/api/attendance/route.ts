@@ -259,14 +259,32 @@ export async function GET(req: Request) {
         const avatar = userData?.avatar || 'https://randomuser.me/api/portraits/men/1.jpg';
         const { shifts, areas, ...rest } = userData ?? {};
 
-        let shiftName = 'Unknown';
+        let shiftName: string = 'Unknown'; // Harus string, bukan string array
         if (Array.isArray(shifts) && shifts.every(shift => shift instanceof DocumentReference)) {
-          const shiftDocs = await Promise.all(shifts.map(shift => getDoc(shift)));
-          const shiftNames = shiftDocs
-            .filter(shiftSnap => shiftSnap.exists())
-            .map(shiftSnap => (shiftSnap.data as { name?: string })?.name ?? 'Unknown');
-          shiftName = shiftNames.length ? shiftNames.join(', ') : 'Unknown';
+          try {
+            const shiftDocs = await Promise.all(shifts.map(shift => getDoc(shift)));
+
+            shiftDocs.forEach((shiftSnap, index) => {
+              console.log(`Shift ${index} snapshot:`, shiftSnap.data());
+            });
+
+            const shiftNames = shiftDocs
+              .filter(shiftSnap => shiftSnap.exists()) // Pastikan dokumen ada
+              .map(shiftSnap => {
+                const data = shiftSnap.data();
+                console.log("Shift data:", data); // Debugging log
+                return data && typeof data === 'object' && 'name' in data ? data.name : 'Unknown';
+              });
+
+            // Gabungkan hasil menjadi string
+            shiftName = shiftNames.length ? shiftNames.join(', ') : 'Unknown';
+
+            console.log("Final shift names:", shiftName);
+          } catch (error) {
+            console.error("Error fetching shifts:", error);
+          }
         }
+
 
         let areaName = 'Unknown';
         if (Array.isArray(areas) && areas.every(area => area instanceof DocumentReference)) {
@@ -276,9 +294,7 @@ export async function GET(req: Request) {
             .map(areaSnap => (areaSnap.data() as { name?: string })?.name ?? 'Unknown');
           areaName = areaNames.length ? areaNames.join(', ') : 'Unknown';
         }
-
         const attendanceRaw = dayDocSnap.data();
-        console.log(`✅ Attendance Data for ${userId} on ${date}:`, attendanceRaw);
 
         return {
           attendanceId: dayDocSnap.id,
@@ -307,6 +323,7 @@ export async function GET(req: Request) {
         } as AttendanceRowType;
       })
     ).then(records => records.filter((item): item is AttendanceRowType => item !== null));
+    console.log(`✅ Attendance Data for` , attendanceData);
 
     console.log("✅ Data fetch completed!");
 

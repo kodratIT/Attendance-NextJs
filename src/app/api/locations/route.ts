@@ -14,6 +14,7 @@ export async function GET() {
       return {
         id: docSnap.id,
         ...rest,
+        assignetTo:"-",
         createdAt: timeSpentToDate(created_at),
         updatedAt: timeSpentToDate(updated_at),
       };

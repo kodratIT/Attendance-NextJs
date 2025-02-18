@@ -136,7 +136,7 @@ const userStatusObj: UserStatusType = {
 // Column Definitions
 const columnHelper = createColumnHelper<UsersTypeWithAction>()
 
-const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
+const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   // States
   const [addUserOpen, setAddUserOpen] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
@@ -330,7 +330,7 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   return (
     <>
       <Card>
-        {/* <TableFilters setLoading={setLoading} setData={setFilteredData} tableData={tableData} /> */}
+        <TableFilters setLoading={setLoading} setData={setFilteredData} tableData={tableData} />
         
         <div className='flex justify-between flex-col items-start md:flex-row md:items-center p-6 border-bs gap-4'>
         <div className="flex items-center gap-2">
@@ -357,21 +357,13 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
               placeholder='Search User'
               className='is-full sm:is-auto'
             />
-            {/* <Button
-              color='secondary'
+            <Button
+              color='primary'
               variant='tonal'
               startIcon={<i className='tabler-upload' />}
               className='is-full sm:is-auto'
             >
               Export
-            </Button> */}
-            <Button
-              variant='contained'
-              startIcon={<i className='tabler-plus' />}
-              onClick={() => setAddUserOpen(!addUserOpen)}
-              className='is-full sm:is-auto'
-            >
-              Request Attendance
             </Button>
           </div>
         </div>
@@ -451,4 +443,4 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   )
 }
 
-export default UserListTable
+export default ReportTable

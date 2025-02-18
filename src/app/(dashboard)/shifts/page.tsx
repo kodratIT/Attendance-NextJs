@@ -25,7 +25,7 @@ const getShiftsData = async (): Promise<Shift> => {
 };
 
 const Loading = () => (
-  <div className="flex justify-center items-center h-screen">
+  <div className="flex justify-center items-center min-h-[200px]">
     <CircularProgress />
   </div>
 );

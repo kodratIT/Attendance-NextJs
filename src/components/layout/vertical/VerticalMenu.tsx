@@ -10,7 +10,7 @@ import type { getDictionary } from '@/utils/getDictionary'
 import type { VerticalMenuContextProps } from '@menu/components/vertical-menu/Menu'
 
 // Component Imports
-import { Menu, MenuItem,SubMenu } from '@menu/vertical-menu'
+import { Menu, MenuItem,SubMenu,MenuSection } from '@menu/vertical-menu'
 
 // Hook Imports
 import useVerticalNav from '@menu/hooks/useVerticalNav'
@@ -73,37 +73,47 @@ const VerticalMenu =  ({ dictionary, scrollMenu }: Props) => {
         renderExpandedMenuItemIcon={{ icon: <i className='tabler-circle text-xs' /> }}
         menuSectionStyles={menuSectionStyles(verticalNavOptions, theme)}
       >
-        <MenuItem href='/home' icon={<i className='tabler-smart-home' />}>
-          Home
-        </MenuItem>
-        <MenuItem href='/attendance' icon={<i className='tabler-smart-home' />}>
-          Attendance
-        </MenuItem>
-
-        <MenuItem href='/shifts' icon={<i className='tabler-smart-home' />}>
-          Shifts
-        </MenuItem>
-
-        <MenuItem href='/areas' icon={<i className='tabler-smart-home' />}>
-          Areas
-        </MenuItem>
-      
-        <MenuItem href='/locations' icon={<i className='tabler-smart-home' />}>
-          Locations
-        </MenuItem>
-
-        <SubMenu label='Roles & Permissions' icon={<i className='tabler-lock' />}>
-          <MenuItem href={`/roles`}>
-            Roles
+          <MenuItem href='/home' icon={<i className='tabler-dashboard' />}>
+            Dashboard
           </MenuItem>
-          <MenuItem href={`/permissions`} >
-            Permissions
-          </MenuItem>
-        </SubMenu>
 
-        <MenuItem href='/users' icon={<i className='tabler-users' />}>
-          Users
-        </MenuItem>
+          <MenuSection label='Attendance Management'>
+            <MenuItem href='/attendance' icon={<i className='tabler-smart-home' />}>
+              Attendance
+            </MenuItem>
+
+            <MenuItem href='/shifts' icon={<i className='tabler-calendar-time' />}>
+              Shifts
+            </MenuItem>
+          </MenuSection>
+
+          <MenuSection label='Geolocation'>
+            <MenuItem href='/areas' icon={<i className='tabler-chart-area' />}>
+              Areas
+            </MenuItem>
+
+            <MenuItem href='/locations' icon={<i className='tabler-map' />}>
+              Locations
+            </MenuItem>
+          </MenuSection>
+
+          <MenuSection label='Reports & Analysis'>
+            <MenuItem href='/report' icon={<i className='tabler-report' />}>
+              Laporan
+            </MenuItem>
+          </MenuSection>
+
+          <MenuSection label='Access Control'>
+            <SubMenu label='Roles & Permissions' icon={<i className='tabler-lock' />}>
+              <MenuItem href={`/roles`}>Roles</MenuItem>
+              <MenuItem href={`/permissions`}>Permissions</MenuItem>
+            </SubMenu>
+
+            <MenuItem href='/users' icon={<i className='tabler-users' />}>
+              Users
+            </MenuItem>
+          </MenuSection>
+
       </Menu>
       {/* <Menu
         popoutMenuOffset={{ mainAxis: 23 }}
