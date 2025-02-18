@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { firestore } from '@/libs/firebase/firebase';
-import { collection, getDocs, getDoc,addDoc, deleteDoc, doc, updateDoc, Timestamp,DocumentReference } from 'firebase/firestore';
+import { collection, getDocs, getDoc,addDoc,setDoc, deleteDoc, doc, updateDoc, Timestamp,DocumentReference } from 'firebase/firestore';
 import { timeSpentToDate } from '@/utils/dateUtils';
 import { createCORSHeaders } from '@/utils/cors';
 import { AreaType } from '@/types/areaTypes';
 import { ShiftType } from '@/types/shiftTypes';
 import { UserRowType } from '@/types/userTypes';
-
+import dayjs from 'dayjs';
 // Interface untuk payload Attendance
 interface AttendancePayload {
   date: string;
@@ -344,62 +344,89 @@ export async function GET(req: Request) {
   }
 }
 
-
 export async function POST(req: NextRequest) {
   try {
-    const payload: AttendancePayload = await req.json();
-
-    // Validasi input
-    if (!payload.date || !payload.checkInTime || !payload.checkOutTime || !payload.workingHours || !payload.status) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          message: 'Invalid data: date, checkInTime, checkOutTime, workingHours, and status are required',
-        }),
-        {
-          status: 400,
-          headers: createCORSHeaders(),
-        }
-      );
+    // const { userId, requestedBy, keterangan } = await req.json();
+    const { userId, keterangan } = await req.json();
+    if (!userId || typeof userId !== 'string') {
+      return NextResponse.json({ success: false, message: 'Invalid userId' }, { status: 400 });
     }
 
-    console.log(`📝 Creating new attendance record for date: ${payload.date}`);
+    console.log(`📝 Recording attendance for user: ${userId}`);
+    
+    // Ambil data user dari Firestore
+    const userRef = doc(firestore, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
+    }
+    const userData = userSnap.data();
+    
+    // Ambil data shift dari referensi user
+    if (!Array.isArray(userData.shifts) || userData.shifts.length === 0) {
+      return NextResponse.json({ success: false, message: 'Shift data is missing or invalid' }, { status: 400 });
+    }
 
-    // Tambahkan record baru ke Firestore
-    const attendanceRef = await addDoc(collection(firestore, 'attendance'), {
-      date: payload.date,
-      checkInTime: payload.checkInTime,
-      checkOutTime: payload.checkOutTime,
-      workingHours: payload.workingHours,
-      status: payload.status,
-      created_at: Timestamp.now(),
-      updated_at: Timestamp.now(),
-    });
+    // Ambil semua shift data dari Firestore
+    const shiftSnaps = await Promise.all(userData.shifts.map(shiftRef => getDoc(shiftRef)));
+    const validShifts = shiftSnaps.filter(shiftSnap => shiftSnap.exists()).map(shiftSnap => shiftSnap.data() as ShiftType);
+    
+    if (validShifts.length === 0) {
+      return NextResponse.json({ success: false, message: 'No valid shifts found' }, { status: 404 });
+    }
+    
+    console.log("✅ Retrieved Shifts:", validShifts);
 
-    console.log(`✅ Attendance record for date ${payload.date} created successfully with ID: ${attendanceRef.id}`);
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Attendance record added successfully',
-        id: attendanceRef.id,
-        ...payload,
-      }),
-      {
-        status: 201,
-        headers: createCORSHeaders(),
-      }
-    );
+    // Pilih shift yang paling sesuai berdasarkan waktu
+    const date = dayjs().format('YYYY-MM-DD');
+    const now = dayjs();
+    const selectedShift = validShifts.find(shift => now.isBefore(dayjs(`${date} ${shift.end_time}`))) || validShifts[0];
+    
+    // Hitung keterlambatan
+    const shiftStartTime = dayjs(`${date} ${selectedShift.start_time}`);
+    const lateBy = Math.max(0, now.diff(shiftStartTime, 'second'));
+    const status = lateBy > 0 ? 'Late' : 'On Time';
+    
+    // Simpan data ke Firestore
+    const attendanceRef = doc(collection(firestore, `attendance/${userId}/day`), date);
+    const attendanceData = {
+      attendanceId: date,
+      userId,
+      name: userData.name,
+      date,
+      // areas: userData.area,
+      shifts: validShifts.map(shift => shift.name), // Simpan semua shift
+      avatar: userData.avatar || '',
+      checkIn: {
+        time: now.format('HH:mm A'),
+        faceVerified: false,
+        location: { latitude: 0, longitude: 0, name: 'Unknown' }
+      },
+      checkOut: {
+        time: '-',
+        faceVerified: false,
+        location: { latitude: 0, longitude: 0, name: 'Unknown' }
+      },
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      earlyLeaveBy: 0,
+      lateBy,
+      status,
+      workingHours: 0,
+      // requestedBy,
+      keterangan
+    };
+    
+    await setDoc(attendanceRef, attendanceData);
+    console.log(`✅ Attendance recorded successfully for user ${userId}`);
+
+    return NextResponse.json({ success: true, message: 'Attendance recorded successfully', data: attendanceData }, { status: 201 });
   } catch (error: any) {
-    console.error('❌ Error adding attendance record:', error);
-    return new Response(
-      JSON.stringify({ success: false, message: 'Failed to add attendance record', error: error.message }),
-      {
-        status: 500,
-        headers: createCORSHeaders(),
-      }
-    );
+    console.error('❌ Error recording attendance:', error);
+    return NextResponse.json({ success: false, message: 'Failed to record attendance', error: error.message }, { status: 500 });
   }
 }
+
 
 // ✅ **UPDATE ATTENDANCE RECORD**
 export async function PUT(req: NextRequest) {

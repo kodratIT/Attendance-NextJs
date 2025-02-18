@@ -20,7 +20,7 @@ import TablePagination from '@mui/material/TablePagination'
 import type { TextFieldProps } from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
 import { CircularProgress } from '@mui/material'
-
+import RequestDialog from '@/components/dialogs/request-attendance-dialog'
 // Third-party Imports
 import classnames from 'classnames'
 import { rankItem } from '@tanstack/match-sorter-utils'
@@ -54,6 +54,9 @@ import CustomAvatar from '@core/components/mui/Avatar'
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
 import { getLocalizedUrl } from '@/utils/i18n'
+
+import OpenDialogOnElementClick from '@components/dialogs/OpenDialogOnElementClick';
+
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -170,6 +173,11 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
       setData([]);
     }
   };
+
+  useEffect(() => {
+    setFilteredData(data);
+  }, [data]);
+  
   // Hooks
   const { lang: locale } = useParams()
 
@@ -365,14 +373,21 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
             >
               Export
             </Button> */}
-            <Button
-              variant='contained'
-              startIcon={<i className='tabler-plus' />}
-              onClick={() => setAddUserOpen(!addUserOpen)}
-              className='is-full sm:is-auto'
-            >
-              Request Attendance
-            </Button>
+            <OpenDialogOnElementClick
+            element={Button}
+            elementProps={{
+              variant: 'contained',
+              startIcon: <i className="tabler-plus" />,
+              children: 'Request Attendance',
+            }}
+            dialog={RequestDialog}
+            dialogProps={{
+              state: 'ADD',
+              data: null,
+              refreshData: fetchData, // Refresh data after add
+            }}
+          />
+
           </div>
         </div>
         <div className='overflow-x-auto'>

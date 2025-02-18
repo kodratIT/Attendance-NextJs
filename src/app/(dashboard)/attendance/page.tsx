@@ -4,6 +4,7 @@ import AttendanceHistory from '@views/attendance';
 import CircularProgress from '@mui/material/CircularProgress';
 import axios from 'axios';
 
+
 const getAttendanceData = async (): Promise<AttendanceRowType[]> => {
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL; // Pastikan ini terdefinisi
