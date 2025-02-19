@@ -158,6 +158,8 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   const [globalFilter, setGlobalFilter] = useState('')
   const [loading,setLoading] = useState<boolean>(false)
 
+  const getColorByLateBy = (lateBy: number) => (lateBy === 0 ? "OnTime" : "Late");
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -258,9 +260,16 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
       columnHelper.accessor('status', {
         header: 'Status',
         cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            <Chip variant="tonal" label={row.original.status} color={colors[row.original.status]} size="small" className="capitalize mie-4" />
+          <div className="flex items-center gap-3">
+            <Chip
+              variant="tonal"
+              label={row.original.status} // Status tetap ditampilkan
+              color={colors[getColorByLateBy(row.original.lateBy)]} // Warna berdasarkan nilai lateBy
+              size="small"
+              className="capitalize mie-4"
+            />
           </div>
+
         )
       }),
       columnHelper.accessor('action', {
