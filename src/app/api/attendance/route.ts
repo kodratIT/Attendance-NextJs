@@ -305,12 +305,12 @@ export async function GET(req: Request) {
           shifts: shiftName,
           avatar: avatar,
           checkIn: attendanceRaw?.checkIn || {
-            time: '00:00 AM',
+            time: '-',
             faceVerified: false,
             location: { latitude: 0, longitude: 0, name: 'Unknown' }
           },
           checkOut: attendanceRaw?.checkOut || {
-            time: '00:00 PM',
+            time: '-',
             faceVerified: false,
             location: { latitude: 0, longitude: 0, name: 'Unknown' }
           },
