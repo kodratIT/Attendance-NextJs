@@ -428,40 +428,69 @@ export async function POST(req: NextRequest) {
 }
 
 
-// ✅ **UPDATE ATTENDANCE RECORD**
 export async function PUT(req: NextRequest) {
   try {
-    const id = req.nextUrl.pathname.split('/').pop();
-    if (!id) {
-      return NextResponse.json({ success: false, message: 'ID is required' }, { status: 400 });
+    const  {data} = await req.json();
+    console.log(`🔄 Updating attendance for user: ${data}`);
+    const userId = data.userId;
+
+    
+    // Ambil data kehadiran pengguna berdasarkan tanggal
+    const date = data.attendanceId;
+    const attendanceRef = doc(collection(firestore, `attendance/${userId}/day`), date);
+    const attendanceSnap = await getDoc(attendanceRef);
+    if (!attendanceSnap.exists()) {
+      return NextResponse.json({ success: false, message: 'Attendance record not found' }, { status: 404 });
+    }
+    const attendanceData = attendanceSnap.data();
+    
+    // Ambil data shift pengguna dari Firestore
+    const userRef = doc(firestore, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
+    }
+    const userData = userSnap.data();
+
+    if (!Array.isArray(userData.shifts) || userData.shifts.length === 0) {
+      return NextResponse.json({ success: false, message: 'Shift data is missing or invalid' }, { status: 400 });
     }
 
-    // Parse JSON body dari request
-    const payload: Partial<AttendancePayload> = await req.json();
-
-    // Validasi input
-    if (!payload.date && !payload.checkInTime && !payload.checkOutTime && !payload.workingHours && !payload.status) {
-      return NextResponse.json({ success: false, message: 'At least one field is required for update' }, { status: 400 });
+    // Ambil semua shift data dari Firestore
+    const shiftSnaps = await Promise.all(userData.shifts.map(shiftRef => getDoc(shiftRef)));
+    const validShifts = shiftSnaps.filter(shiftSnap => shiftSnap.exists()).map(shiftSnap => shiftSnap.data() as ShiftType );
+    
+    if (validShifts.length === 0) {
+      return NextResponse.json({ success: false, message: 'No valid shifts found' }, { status: 404 });
     }
+    
+    // Pilih shift yang sesuai berdasarkan waktu
+    const now = dayjs();
+    const selectedShift = validShifts.find(shift => now.isBefore(dayjs(`${date} ${shift.end_time}`))) || validShifts[0];
+    
+    const shiftEndTime = dayjs(`${date} ${selectedShift.end_time}`);
+    const earlyLeaveBy = Math.max(0, shiftEndTime.diff(now, 'second'));
+    
+    // Update data checkout
+    const updatedAttendanceData = {
+      ...attendanceData,
+      checkOut: {
+        time: now.format('HH:mm A'),
+        faceVerified: false,
+        location: { latitude: 0, longitude: 0, name: 'Unknown' }
+      },
+      earlyLeaveBy,
+      verifyOwner: false,
+      updatedAt: Timestamp.now(),
+    };
 
-    console.log(`🔄 Updating Attendance Record: ${id} with Payload:`, payload);
+    await setDoc(attendanceRef, updatedAttendanceData);
+    console.log(`✅ Attendance updated successfully for user ${userId}`);
 
-    const attendanceRef = doc(firestore, 'attendance', id);
-
-    // Update langsung tanpa cek dokumen jika yakin dokumen ada
-    await updateDoc(attendanceRef, {
-      ...payload,
-      updated_at: Timestamp.now(),
-    });
-
-    console.log(`✅ Attendance Record ${id} updated successfully`);
-    return NextResponse.json({ success: true, message: 'Attendance record updated successfully' }, { status: 200 });
+    return NextResponse.json({ success: true, message: 'Attendance updated successfully', data: updatedAttendanceData }, { status: 200 });
   } catch (error: any) {
-    console.error(`❌ Error updating attendance record ${req.nextUrl.pathname}:`, error);
-    return NextResponse.json(
-      { success: false, message: 'Failed to update attendance record', error: error.message },
-      { status: 500 }
-    );
+    console.error('❌ Error updating attendance:', error);
+    return NextResponse.json({ success: false, message: 'Failed to update attendance', error: error.message }, { status: 500 });
   }
 }
 

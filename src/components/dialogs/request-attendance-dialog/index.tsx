@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -14,6 +14,7 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
+import { AttendanceRowType } from '@/types/attendanceRowTypes';
 
 interface UserType {
   id: number;
@@ -24,15 +25,19 @@ interface UserType {
 interface RequestDialogProps {
   open: boolean;
   setOpen: (open: boolean) => void;
+  state?: 'Add' | 'Edit';
+  data?: AttendanceRowType;
   currentUser: UserType;
   refreshData?: () => void;
 }
 
-const RequestDialog = ({ open, setOpen, currentUser, refreshData = () => {} }: RequestDialogProps) => {
+const RequestDialog = ({ open, setOpen, currentUser, state, data, refreshData = () => {} }: RequestDialogProps) => {
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [users, setUsers] = useState<UserType[]>([]);
+  const [AttendanceData, setData] = useState(data || null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [keterangan, setKeterangan] = useState('');
 
   // Error states
@@ -58,12 +63,12 @@ const RequestDialog = ({ open, setOpen, currentUser, refreshData = () => {} }: R
     };
 
     fetchUsers();
+
   }, [open]);
 
   const handleUserChange = (event: any) => {
     const userId = event.target.value;
     const selected = users.find((user) => user.id === userId) || null;
-    console.log(selected);
     setSelectedUser(selected);
   };
 
@@ -81,15 +86,37 @@ const RequestDialog = ({ open, setOpen, currentUser, refreshData = () => {} }: R
       return;
     }
 
-    console.log(selectedUser);
     setSaving(true);
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+      // Create new attendance request
       await axios.post(`${API_URL}/api/attendance`, {
         userId: selectedUser.id,
-        // requestedBy: currentUser.id,
         keterangan,
       });
+
+      setSelectedUser(null);
+      setKeterangan('');
+
+      refreshData();
+      setOpen(false);
+    } catch (error) {
+      console.error('Error submitting request:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const handleSend = async () => {
+    setSaving(true);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+      // Create new attendance request
+      await axios.put(`${API_URL}/api/attendance`, {
+        data: AttendanceData,
+      });
+
       refreshData();
       setOpen(false);
     } catch (error) {
@@ -101,47 +128,64 @@ const RequestDialog = ({ open, setOpen, currentUser, refreshData = () => {} }: R
 
   return (
     <Dialog fullWidth open={open} onClose={() => setOpen(false)}>
-      <DialogTitle>Request Attendance</DialogTitle>
-      <DialogContent>
-        <FormControl fullWidth margin="normal">
-          <InputLabel>Nama Karyawan</InputLabel>
-          <Select
-            value={selectedUser?.id || ''}
-            onChange={handleUserChange}
-            displayEmpty
-          >
-            {loading ? (
-              <MenuItem disabled>
-                <CircularProgress size={24} />
-              </MenuItem>
-            ) : (
-              users.map((user) => (
-                <MenuItem key={user.id} value={user.id}>
-                  {user.name}
-                </MenuItem>
-              ))
-            )}
-          </Select>
-          <TextField
-            label="Keterangan"
-            value={keterangan}
-            onChange={(e) => setKeterangan(e.target.value)}
-            fullWidth
-            margin="normal"
-            required
-            error={!!errors.keterangan}
-            helperText={errors.keterangan}
-          />
-        </FormControl>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleSubmit} variant="contained" disabled={saving || !selectedUser}>
-          {saving ? <CircularProgress color="inherit" size={24} /> : 'Submit'}
-        </Button>
-        <Button onClick={() => setOpen(false)} variant="outlined" disabled={saving}>
-          Cancel
-        </Button>
-      </DialogActions>
+      {state === 'Edit' ? (
+        <>
+          <DialogTitle>{state === 'Edit' ? 'Request Checkout Kehadiran' : 'Permintaan Checkout Kehadiran'}</DialogTitle>
+          <DialogContent className="text-center">
+          <Typography variant="body1" color="error">
+            Apakah Anda yakin ingin melakukan checkout kehadiran?
+          </Typography>
+          </DialogContent>
+          <DialogActions className="flex justify-center pbs-4 sm:pli-16">
+          <Button variant="contained" color="primary" onClick={handleSend} disabled={saving}>
+            {saving ? <CircularProgress color="inherit" size={20} /> : 'Konfirmasi Checkout'}
+          </Button>
+          <Button onClick={() => setOpen(false)} variant="outlined" color="secondary" disabled={saving}>
+            Batal
+          </Button>
+          </DialogActions>
+        </>
+      ) : (
+        <>
+          <DialogTitle>{state === 'Add' ? 'Request Attendance CheckIn' : 'Request Attendance CheckOut'}</DialogTitle>
+          <DialogContent>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Nama Karyawan</InputLabel>
+              <Select value={selectedUser?.id || ''} onChange={handleUserChange} displayEmpty>
+                {loading ? (
+                  <MenuItem disabled>
+                    <CircularProgress size={24} />
+                  </MenuItem>
+                ) : (
+                  users.map((user) => (
+                    <MenuItem key={user.id} value={user.id}>
+                      {user.name}
+                    </MenuItem>
+                  ))
+                )}
+              </Select>
+              <TextField
+                label="Keterangan"
+                value={keterangan}
+                onChange={(e) => setKeterangan(e.target.value)}
+                fullWidth
+                margin="normal"
+                required
+                error={!!errors.keterangan}
+                helperText={errors.keterangan}
+              />
+            </FormControl>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleSubmit} variant="contained" disabled={saving || !selectedUser}>
+              {saving ? <CircularProgress color="inherit" size={24} /> : state === 'Add' ? 'Submit' : 'Update'}
+            </Button>
+            <Button onClick={() => setOpen(false)} variant="outlined" disabled={saving}>
+              Cancel
+            </Button>
+          </DialogActions>
+        </>
+      )}
     </Dialog>
   );
 };

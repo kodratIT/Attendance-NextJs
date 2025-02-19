@@ -71,6 +71,16 @@ declare module '@tanstack/table-core' {
     itemRank: RankingInfo
   }
 }
+type Colors = {
+  [key: string]: ThemeColor
+}
+
+const colors: Colors = {
+  Late: 'warning',
+  OnTime: 'success',
+  present: 'success',
+  'restricted-user': 'error'
+}
 
 type UsersTypeWithAction = AttendanceRowType & {
   action?: string
@@ -249,13 +259,7 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
         header: 'Status',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Chip
-              variant='tonal'
-              label={row.original.status}
-              size='small'
-              color={userStatusObj[row.original.status]}
-              className='capitalize'
-            />
+            <Chip variant="tonal" label={row.original.status} color={colors[row.original.status]} size="small" className="capitalize mie-4" />
           </div>
         )
       }),
@@ -263,34 +267,48 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
         header: 'Action',
         cell: ({ row }) => (
           <div className='flex items-center'>
-            {/* <IconButton onClick={() => setData(data?.filter(product => product.id !== row.original.id))}>
-              <i className='tabler-trash text-textSecondary' />
-            </IconButton> */}
-            <IconButton>
-              <Link href={getLocalizedUrl('/apps/user/view', locale as Locale)} className='flex'>
-                <i className='tabler-eye text-textSecondary' />
-              </Link>
-            </IconButton>
-            <OptionMenu
-              iconButtonProps={{ size: 'medium' }}
-              iconClassName='text-textSecondary'
-              options={[
-                {
-                  text: 'Download',
-                  icon: 'tabler-download',
-                  menuItemProps: { className: 'flex items-center gap-2 text-textSecondary' }
-                },
-                {
-                  text: 'Edit',
-                  icon: 'tabler-edit',
-                  menuItemProps: { className: 'flex items-center gap-2 text-textSecondary' }
-                }
-              ]}
-            />
+            {row.original.checkOut?.time === '-' ? (
+              <OpenDialogOnElementClick
+              element={IconButton}
+              elementProps={{
+                children: <i className="tabler-brand-telegram text-primary-500" />,
+              }}
+                dialog={RequestDialog}
+                dialogProps={{
+                  state: 'Edit',
+                  data: row.original,
+                  refreshData: fetchData, // Refresh data after add
+                }}
+              />
+            ) : (
+              <>
+                <IconButton>
+                  <Link href={getLocalizedUrl('/apps/user/view', locale as Locale)} className='flex'>
+                    <i className='tabler-eye text-textSecondary' />
+                  </Link>
+                </IconButton>
+                <OptionMenu
+                  iconButtonProps={{ size: 'medium' }}
+                  iconClassName='text-textSecondary'
+                  options={[
+                    {
+                      text: 'Download',
+                      icon: 'tabler-download',
+                      menuItemProps: { className: 'flex items-center gap-2 text-textSecondary' }
+                    },
+                    {
+                      text: 'Edit',
+                      icon: 'tabler-edit',
+                      menuItemProps: { className: 'flex items-center gap-2 text-textSecondary' }
+                    }
+                  ]}
+                />
+              </>
+            )}
           </div>
         ),
         enableSorting: false
-      })
+      })      
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, filteredData]
@@ -382,7 +400,7 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
             }}
             dialog={RequestDialog}
             dialogProps={{
-              state: 'ADD',
+              state: 'Add',
               data: null,
               refreshData: fetchData, // Refresh data after add
             }}

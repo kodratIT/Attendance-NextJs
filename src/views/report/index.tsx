@@ -59,6 +59,16 @@ import { getLocalizedUrl } from '@/utils/i18n'
 import tableStyles from '@core/styles/table.module.css'
 
 import axios from 'axios'
+type Colors = {
+  [key: string]: ThemeColor
+}
+
+const colors: Colors = {
+  Late: 'warning',
+  OnTime: 'success',
+  present: 'success',
+  'restricted-user': 'error'
+}
 
 declare module '@tanstack/table-core' {
   interface FilterFns {
@@ -241,13 +251,7 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
         header: 'Status',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Chip
-              variant='tonal'
-              label={row.original.status}
-              size='small'
-              color={userStatusObj[row.original.status]}
-              className='capitalize'
-            />
+            <Chip variant="tonal" label={row.original.status} color={colors[row.original.status]} size="small" className="capitalize mie-4" />
           </div>
         )
       }),
