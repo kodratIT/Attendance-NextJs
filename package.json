@@ -46,6 +46,8 @@
     "react-toastify": "^11.0.3",
     "react-use": "17.5.0",
     "server-only": "0.0.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "tanstack": "^1.0.0",
     "usehooks-ts": "^3.1.1",
     "uuid": "^11.0.5"

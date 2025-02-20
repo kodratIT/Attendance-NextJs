@@ -54,6 +54,7 @@ import CustomAvatar from '@core/components/mui/Avatar'
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
 import { getLocalizedUrl } from '@/utils/i18n'
+import { formatSecondsToTime } from '@/utils/dateUtils'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -62,6 +63,48 @@ import axios from 'axios'
 type Colors = {
   [key: string]: ThemeColor
 }
+
+export interface CheckDetails {
+  time: string;
+  faceVerified: boolean;
+  location: object;
+}
+
+export interface Attendance {
+  attendanceId: string;
+  userId: string;
+  name: string;
+  date: string;
+  areas: string;
+  shifts: string;
+  avatar: string;
+  checkIn: CheckDetails;
+  checkOut: CheckDetails;
+  createdAt: string;
+  updatedAt: string;
+  earlyLeaveBy: number;
+  lateBy: number;
+  status: string;
+  workingHours: number;
+}
+
+const processAttendanceData = (rawData: Record<string, Attendance[]>): Attendance[] => {
+  const processedData: Record<string, Attendance> = {};
+
+  Object.values(rawData).flat().forEach((record) => {
+    const { userId, earlyLeaveBy, lateBy, workingHours, ...rest } = record;
+
+    if (!processedData[userId]) {
+      processedData[userId] = { ...record };
+    } else {
+      processedData[userId].earlyLeaveBy += earlyLeaveBy;
+      processedData[userId].lateBy += lateBy;
+      processedData[userId].workingHours += workingHours;
+    }
+  });
+
+  return Object.values(processedData);
+};
 
 const colors: Colors = {
   Late: 'warning',
@@ -152,6 +195,7 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState(...[tableData])
   const [filteredData, setFilteredData] = useState(data)
+  const [excelData, setExcelData] = useState([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [loading,setLoading] = useState<boolean>(false)
 
@@ -169,7 +213,7 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
                               String(fromDate.getUTCDate()).padStart(2, '0');
                               
       const res = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedToDate}&toDate=${formattedToDate}`
+        `${process.env.NEXT_PUBLIC_API_URL}/api/report?fromDate=${formattedToDate}&toDate=${formattedToDate}`
       );
 
       setData(res.data)
@@ -183,114 +227,83 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   // Hooks
   const { lang: locale } = useParams()
 
-  const columns = useMemo<ColumnDef<UsersTypeWithAction, any>[]>(
-    () => [
-      // {
-      //   id: 'select',
-      //   header: ({ table }) => (
-      //     <Checkbox
-      //       {...{
-      //         checked: table.getIsAllRowsSelected(),
-      //         indeterminate: table.getIsSomeRowsSelected(),
-      //         onChange: table.getToggleAllRowsSelectedHandler()
-      //       }}
-      //     />
-      //   ),
-      //   cell: ({ row }) => (
-      //     <Checkbox
-      //       {...{
-      //         checked: row.getIsSelected(),
-      //         disabled: !row.getCanSelect(),
-      //         indeterminate: row.getIsSomeSelected(),
-      //         onChange: row.getToggleSelectedHandler()
-      //       }}
-      //     />
-      //   )
-      // },
-      columnHelper.accessor('name', {
-        header: 'Name',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-4'>
-            {getAvatar({ avatar: row.original.avatar, name: row.original.name })}
-            <div className='flex flex-col'>
-              <Typography color='text.primary' className='font-medium'>
-                {row.original.name}
-              </Typography>
-              <Typography variant='body2'>{row.original.name}</Typography>
-            </div>
-          </div>
-        )
-      }),
-      columnHelper.accessor('shifts', {
-        header: 'Shifts',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-2'>
-            <Typography className='capitalize' color='text.primary'>
-              {row.original.shifts}
+  const columns = useMemo<ColumnDef<UsersTypeWithAction, any>[]>(() => [
+    columnHelper.accessor('name', {
+      header: 'Nama',
+      cell: ({ row }) => (
+        <div className='flex items-center gap-4'>
+          {getAvatar({ avatar: row.original.avatar, name: row.original.name })}
+          <div className='flex flex-col'>
+            <Typography color='text.primary' className='font-medium'>
+              {row.original.name}
             </Typography>
+            {/* <Typography variant='body2'>{row.original.name}</Typography> */}
           </div>
-        )
-      }),
-      columnHelper.accessor('checkIn', {
-        header: 'checkIn',
-        cell: ({ row }) => (
+        </div>
+      )
+    }),
+    columnHelper.accessor('shifts', {
+      header: 'Shift',
+      cell: ({ row }) => (
+        <div className='flex items-center gap-2'>
           <Typography className='capitalize' color='text.primary'>
-            {row.original.checkIn.time}
+            {row.original.shifts}
           </Typography>
-        )
-      }),
-      columnHelper.accessor('checkOut', {
-        header: 'CheckOut',
-        cell: ({ row }) => (
-          <Typography className='capitalize' color='text.primary'>
-            {row.original.checkOut.time}
-          </Typography>
-        )
-      }),
-      columnHelper.accessor('status', {
-        header: 'Status',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            <Chip variant="tonal" label={row.original.status} color={colors[row.original.status]} size="small" className="capitalize mie-4" />
-          </div>
-        )
-      }),
-      columnHelper.accessor('action', {
-        header: 'Action',
-        cell: ({ row }) => (
-          <div className='flex items-center'>
-            {/* <IconButton onClick={() => setData(data?.filter(product => product.id !== row.original.id))}>
-              <i className='tabler-trash text-textSecondary' />
-            </IconButton> */}
-            <IconButton>
-              <Link href={getLocalizedUrl('/apps/user/view', locale as Locale)} className='flex'>
-                <i className='tabler-eye text-textSecondary' />
-              </Link>
-            </IconButton>
-            <OptionMenu
-              iconButtonProps={{ size: 'medium' }}
-              iconClassName='text-textSecondary'
-              options={[
-                {
-                  text: 'Download',
-                  icon: 'tabler-download',
-                  menuItemProps: { className: 'flex items-center gap-2 text-textSecondary' }
-                },
-                {
-                  text: 'Edit',
-                  icon: 'tabler-edit',
-                  menuItemProps: { className: 'flex items-center gap-2 text-textSecondary' }
-                }
-              ]}
-            />
-          </div>
-        ),
-        enableSorting: false
-      })
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, filteredData]
-  )
+        </div>
+      )
+    }),
+    columnHelper.accessor('areas', {
+      header: 'Cabang',
+      cell: ({ row }) => (
+        <Typography className='capitalize' color='text.primary'>
+          {row.original.areas}
+        </Typography>
+      )
+    }),
+    columnHelper.accessor('earlyLeaveBy', {
+      header: 'Pulang Lebih Awal',
+      cell: ({ row }) => (
+        <Typography className='capitalize' color='text.primary'>
+          {formatSecondsToTime(row.original.earlyLeaveBy)}
+        </Typography>
+      )
+    }),
+    columnHelper.accessor('lateBy', {
+      header: 'Keterlambatan',
+      cell: ({ row }) => (
+        <Typography className='capitalize' color='text.primary'>
+          {formatSecondsToTime(row.original.lateBy)}
+        </Typography>
+      ) 
+    }),
+    columnHelper.accessor('workingHours', {
+      header: 'Jam Kerja',
+      cell: ({ row }) => (
+        <Typography className='capitalize' color='text.primary'>
+          {formatSecondsToTime(row.original.workingHours)}
+        </Typography>
+      ) 
+    }),
+    columnHelper.accessor('action', {
+      header: 'Aksi',
+      cell: ({ row }) => (
+        <div className='flex items-center'>
+          <OptionMenu
+            iconButtonProps={{ size: 'medium' }}
+            iconClassName='text-textSecondary'
+            options={[
+              {
+                text: 'Unduh Laporan',
+                icon: 'tabler-download',
+                menuItemProps: { className: 'flex items-center gap-2 text-textSecondary' }
+              }
+            ]}
+          />
+        </div>
+      ),
+      enableSorting: false
+    })
+  ], [data, filteredData]);
 
   const table = useReactTable({
     data: filteredData as AttendanceRowType[],
@@ -358,7 +371,7 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
             <DebouncedInput
               value={globalFilter ?? ''}
               onChange={value => setGlobalFilter(String(value))}
-              placeholder='Search User'
+              placeholder='Pencarian Pengguna'
               className='is-full sm:is-auto'
             />
             <Button
@@ -413,7 +426,7 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
               <tbody>
                 <tr>
                   <td colSpan={table.getVisibleFlatColumns().length} className="text-center">
-                    No data available
+                    Tidak Ada Data Yang Tersedia
                   </td>
                 </tr>
               </tbody>

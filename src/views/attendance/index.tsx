@@ -57,12 +57,19 @@ import { getLocalizedUrl } from '@/utils/i18n'
 
 import OpenDialogOnElementClick from '@components/dialogs/OpenDialogOnElementClick';
 
-
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
 import axios from 'axios'
+import {database} from "@/libs/firebase/firebase";
+import { ref, onValue, set } from "firebase/database";
 
+// //gagal socket Io
+// import io from "socket.io-client";
+
+// const socket = io(`${process.env.NEXT_PUBLIC_API_URL}/api/attendance/socket`, {
+//   transports: ["websocket"], // 🔥 Paksa gunakan WebSocket, bukan polling
+// });
 declare module '@tanstack/table-core' {
   interface FilterFns {
     fuzzy: FilterFn<unknown>
@@ -177,6 +184,9 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
         `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedToDate}&toDate=${formattedToDate}`
       );
 
+      
+      // ✅ Reset trigger setelah data diambil
+      set(ref(database, "triggers/attendanceUpdate"), false);
       setData(res.data)
 
       setLoading(false);
@@ -185,6 +195,65 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
       setData([]);
     }
   };
+  const realTime = async () => {
+    try {
+      let fromDate = new Date();
+
+      // Menyesuaikan zona waktu ke UTC+7
+      fromDate.setHours(fromDate.getHours() + 7);
+
+      const formattedToDate = fromDate.getUTCFullYear() + '-' + 
+                              String(fromDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+                              String(fromDate.getUTCDate()).padStart(2, '0');
+                              
+      const res = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedToDate}&toDate=${formattedToDate}`
+      );
+
+      
+      // ✅ Reset trigger setelah data diambil
+      set(ref(database, "triggers/attendanceUpdate"), false);
+      setData(res.data)
+    } catch (error) {
+      console.error("❌ Error fetching filtered data:", error);
+      setData([]);
+    }
+  };
+
+
+  // const socket = io(`${process.env.NEXT_PUBLIC_API_URL}`);
+
+//socket io gagal
+// useEffect(() => {
+//   // Dengarkan event WebSocket untuk update data secara realtime
+//   socket.on("attendanceUpdate", () => {
+//     console.log("📢 Data berubah! Fetching new attendance data...");
+//     fetchData(); // Panggil ulang API untuk mendapatkan data terbaru
+//   });
+
+//   return () => {
+//     socket.off("attendanceUpdate"); // Hapus listener saat komponen di-unmount
+//   };
+// }, []);
+
+
+  useEffect(() => {
+    fetchData(); // 🔥 Ambil data pertama kali saat halaman dimuat
+
+    // 🔥 Dengarkan perubahan di Realtime Database
+    const triggerRef = ref(database, "triggers/attendanceUpdate");
+
+    onValue(triggerRef, (snapshot) => {
+      if (snapshot.val() === true) {
+        console.log("📢 Data berubah! Fetching new attendance data...");
+        realTime(); // Panggil ulang API untuk mendapatkan data terbaru
+      }
+    });
+
+    return () => {
+      set(triggerRef, false); // Reset trigger saat komponen unmount
+    };
+  }, []);
 
   useEffect(() => {
     setFilteredData(data);
@@ -193,135 +262,93 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   // Hooks
   const { lang: locale } = useParams()
 
-  const columns = useMemo<ColumnDef<UsersTypeWithAction, any>[]>(
-    () => [
-      // {
-      //   id: 'select',
-      //   header: ({ table }) => (
-      //     <Checkbox
-      //       {...{
-      //         checked: table.getIsAllRowsSelected(),
-      //         indeterminate: table.getIsSomeRowsSelected(),
-      //         onChange: table.getToggleAllRowsSelectedHandler()
-      //       }}
-      //     />
-      //   ),
-      //   cell: ({ row }) => (
-      //     <Checkbox
-      //       {...{
-      //         checked: row.getIsSelected(),
-      //         disabled: !row.getCanSelect(),
-      //         indeterminate: row.getIsSomeSelected(),
-      //         onChange: row.getToggleSelectedHandler()
-      //       }}
-      //     />
-      //   )
-      // },
-      columnHelper.accessor('name', {
-        header: 'Name',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-4'>
-            {getAvatar({ avatar: row.original.avatar, name: row.original.name })}
-            <div className='flex flex-col'>
-              <Typography color='text.primary' className='font-medium'>
-                {row.original.name}
-              </Typography>
-              <Typography variant='body2'>{row.original.name}</Typography>
-            </div>
-          </div>
-        )
-      }),
-      columnHelper.accessor('shifts', {
-        header: 'Shifts',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-2'>
-            <Typography className='capitalize' color='text.primary'>
-              {row.original.shifts}
+  const columns = useMemo<ColumnDef<UsersTypeWithAction, any>[]>(() => [
+    columnHelper.accessor('name', {
+      header: 'Nama',
+      cell: ({ row }) => (
+        <div className='flex items-center gap-4'>
+          {getAvatar({ avatar: row.original.avatar, name: row.original.name })}
+          <div className='flex flex-col'>
+            <Typography color='text.primary' className='font-medium'>
+              {row.original.name}
             </Typography>
+            <Typography variant='body2'>{row.original.name}</Typography>
           </div>
-        )
-      }),
-      columnHelper.accessor('checkIn', {
-        header: 'checkIn',
-        cell: ({ row }) => (
+        </div>
+      )
+    }),
+    columnHelper.accessor('shifts', {
+      header: 'Shift',
+      cell: ({ row }) => (
+        <div className='flex items-center gap-2'>
           <Typography className='capitalize' color='text.primary'>
-            {row.original.checkIn.time}
+            {row.original.shifts}
           </Typography>
-        )
-      }),
-      columnHelper.accessor('checkOut', {
-        header: 'CheckOut',
-        cell: ({ row }) => (
-          <Typography className='capitalize' color='text.primary'>
-            {row.original.checkOut.time}
-          </Typography>
-        )
-      }),
-      columnHelper.accessor('status', {
-        header: 'Status',
-        cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            <Chip
-              variant="tonal"
-              label={row.original.status} // Status tetap ditampilkan
-              color={colors[getColorByLateBy(row.original.lateBy)]} // Warna berdasarkan nilai lateBy
-              size="small"
-              className="capitalize mie-4"
-            />
-          </div>
-
-        )
-      }),
-      columnHelper.accessor('action', {
-        header: 'Action',
-        cell: ({ row }) => (
-          <div className='flex items-center'>
-            {row.original.checkOut?.time === '-' ? (
-              <OpenDialogOnElementClick
+        </div>
+      )
+    }),
+    columnHelper.accessor('checkIn', {
+      header: 'Jam Masuk',
+      cell: ({ row }) => (
+        <Typography className='capitalize' color='text.primary'>
+          {row.original.checkIn.time}
+        </Typography>
+      )
+    }),
+    columnHelper.accessor('checkOut', {
+      header: 'Jam Keluar',
+      cell: ({ row }) => (
+        <Typography className='capitalize' color='text.primary'>
+          {row.original.checkOut.time}
+        </Typography>
+      )
+    }),
+    columnHelper.accessor('status', {
+      header: 'Status',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <Chip
+            variant="tonal"
+            label={row.original.status} // Status tetap ditampilkan
+            color={colors[getColorByLateBy(row.original.lateBy)]} // Warna berdasarkan nilai lateBy
+            size="small"
+            className="capitalize mie-4"
+          />
+        </div>
+      )
+    }),
+    columnHelper.accessor('action', {
+      header: 'Aksi',
+      cell: ({ row }) => (
+        <div className='flex items-center'>
+          {row.original.checkOut?.time === '-' ? (
+            <OpenDialogOnElementClick
               element={IconButton}
               elementProps={{
                 children: <i className="tabler-brand-telegram text-primary-500" />,
               }}
-                dialog={RequestDialog}
-                dialogProps={{
-                  state: 'Edit',
-                  data: row.original,
-                  refreshData: fetchData, // Refresh data after add
-                }}
-              />
-            ) : (
-              <>
-                <IconButton>
-                  <Link href={getLocalizedUrl('/apps/user/view', locale as Locale)} className='flex'>
-                    <i className='tabler-eye text-textSecondary' />
-                  </Link>
-                </IconButton>
-                <OptionMenu
-                  iconButtonProps={{ size: 'medium' }}
-                  iconClassName='text-textSecondary'
-                  options={[
-                    {
-                      text: 'Download',
-                      icon: 'tabler-download',
-                      menuItemProps: { className: 'flex items-center gap-2 text-textSecondary' }
-                    },
-                    {
-                      text: 'Edit',
-                      icon: 'tabler-edit',
-                      menuItemProps: { className: 'flex items-center gap-2 text-textSecondary' }
-                    }
-                  ]}
-                />
-              </>
-            )}
-          </div>
-        ),
-        enableSorting: false
-      })      
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, filteredData]
-  )
+              dialog={RequestDialog}
+              dialogProps={{
+                state: 'Edit',
+                data: row.original,
+                refreshData: fetchData, // Refresh data setelah edit
+              }}
+            />
+          ) : (
+            <>
+              <IconButton>
+                <Link href={getLocalizedUrl('/apps/user/view', locale as Locale)} className='flex'>
+                  <i className='tabler-eye text-textSecondary' />
+                </Link>
+              </IconButton>
+            </>
+          )}
+        </div>
+      ),
+      enableSorting: false
+    })      
+  ], [data, filteredData]);
+  
 
   const table = useReactTable({
     data: filteredData as AttendanceRowType[],
@@ -389,7 +416,7 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
             <DebouncedInput
               value={globalFilter ?? ''}
               onChange={value => setGlobalFilter(String(value))}
-              placeholder='Search User'
+              placeholder='Pencarian Pengguna'
               className='is-full sm:is-auto'
             />
             {/* <Button
@@ -405,7 +432,7 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
             elementProps={{
               variant: 'contained',
               startIcon: <i className="tabler-plus" />,
-              children: 'Request Attendance',
+              children: 'Ajukan Kehadiran',
             }}
             dialog={RequestDialog}
             dialogProps={{

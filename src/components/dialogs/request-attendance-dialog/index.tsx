@@ -130,7 +130,7 @@ const RequestDialog = ({ open, setOpen, currentUser, state, data, refreshData = 
     <Dialog fullWidth open={open} onClose={() => setOpen(false)}>
       {state === 'Edit' ? (
         <>
-          <DialogTitle>{state === 'Edit' ? 'Request Checkout Kehadiran' : 'Permintaan Checkout Kehadiran'}</DialogTitle>
+          <DialogTitle>{state === 'Edit' ? 'Permintaan Checkout Kehadiran' : 'Permintaan Checkout Kehadiran'}</DialogTitle>
           <DialogContent className="text-center">
           <Typography variant="body1" color="error">
             Apakah Anda yakin ingin melakukan checkout kehadiran?
@@ -147,7 +147,7 @@ const RequestDialog = ({ open, setOpen, currentUser, state, data, refreshData = 
         </>
       ) : (
         <>
-          <DialogTitle>{state === 'Add' ? 'Request Attendance CheckIn' : 'Request Attendance CheckOut'}</DialogTitle>
+          <DialogTitle>{state === 'Add' ? 'Permintaan CheckIn Kehadiran' : 'Permintaan CheckIn Kehadiran'}</DialogTitle>
           <DialogContent>
             <FormControl fullWidth margin="normal">
               <InputLabel>Nama Karyawan</InputLabel>
@@ -178,10 +178,10 @@ const RequestDialog = ({ open, setOpen, currentUser, state, data, refreshData = 
           </DialogContent>
           <DialogActions>
             <Button onClick={handleSubmit} variant="contained" disabled={saving || !selectedUser}>
-              {saving ? <CircularProgress color="inherit" size={24} /> : state === 'Add' ? 'Submit' : 'Update'}
+              {saving ? <CircularProgress color="inherit" size={24} /> : state === 'Add' ? 'Kirim' : 'Update'}
             </Button>
             <Button onClick={() => setOpen(false)} variant="outlined" disabled={saving}>
-              Cancel
+              Batal
             </Button>
           </DialogActions>
         </>

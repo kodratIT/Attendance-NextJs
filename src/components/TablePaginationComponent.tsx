@@ -24,7 +24,7 @@ const TablePaginationComponent = <T,>({ table }: TablePaginationProps<T>) => {
   return (
     <div className='flex justify-between items-center flex-wrap pli-6 border-bs bs-auto plb-[12.5px] gap-2'>
       <Typography color='text.disabled'>
-        {`Showing ${startRow} to ${endRow} of ${totalRows} entries`}
+        {`Menampilkan ${startRow} hingga ${endRow} dari ${totalRows} entri`}
       </Typography>
       <Pagination
         shape='rounded'

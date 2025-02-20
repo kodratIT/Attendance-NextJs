@@ -11,6 +11,49 @@ import type { AttendanceRowType } from '@/types/attendanceRowTypes';
 import CustomTextField from '@core/components/mui/TextField';
 import { AreaType } from '@/types/areaTypes';
 
+export interface CheckDetails {
+  time: string;
+  faceVerified: boolean;
+  location: object;
+}
+
+export interface Attendance {
+  attendanceId: string;
+  userId: string;
+  name: string;
+  date: string;
+  areas: string;
+  shifts: string;
+  avatar: string;
+  checkIn: CheckDetails;
+  checkOut: CheckDetails;
+  createdAt: string;
+  updatedAt: string;
+  earlyLeaveBy: number;
+  lateBy: number;
+  status: string;
+  workingHours: number;
+}
+
+
+const processAttendanceData = (rawData: Record<string, AttendanceRowType[]>): AttendanceRowType[] => {
+  const processedData: Record<string, AttendanceRowType> = {};
+
+  Object.values(rawData).flat().forEach((record) => {
+    const { userId, earlyLeaveBy, lateBy, workingHours, ...rest } = record;
+
+    if (!processedData[userId]) {
+      processedData[userId] = { ...record };
+    } else {
+      processedData[userId].earlyLeaveBy += earlyLeaveBy;
+      processedData[userId].lateBy += lateBy;
+      processedData[userId].workingHours += workingHours;
+    }
+  });
+
+  return Object.values(processedData);
+};
+
 const TableFilters = ({
   setLoading,
   setData,
@@ -75,17 +118,21 @@ const TableFilters = ({
                                 String(toDate.getUTCDate()).padStart(2, '0');
                                 
         const res = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
+          `${process.env.NEXT_PUBLIC_API_URL}/api/report?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
         );
+                                
+        let b =processAttendanceData(res.data)
+        let filteredData = b;
 
-        let filteredData = res.data;
-
-        if (status) {
-          filteredData = filteredData.filter((row: AttendanceRowType) => row.status === status);
-        }
+        // if (status) {
+        //   filteredData = filteredData.filter((row: AttendanceRowType) => row.status === status);
+        // }
         if (area) {
-          filteredData = filteredData.filter((row: AttendanceRowType) => row.areas === area);
+          console.log("Data sebelum filter:", filteredData);
+          filteredData = filteredData.filter((row: AttendanceRowType) => row.areas.trim().toLowerCase() === area.trim().toLowerCase());
+          console.log("Data setelah filter:", filteredData); 
         }
+        
 
         setData(filteredData);
         setLoading(false);
@@ -101,7 +148,7 @@ const TableFilters = ({
   return (
     <CardContent>
       <Grid container spacing={6}>
-        {/* Filter Status */}
+        {/* Filter Status
         <Grid item xs={12} sm={4}>
           <CustomTextField
             select
@@ -120,14 +167,14 @@ const TableFilters = ({
             <MenuItem value="absent">Absent</MenuItem>
             <MenuItem value="late">Late</MenuItem>
           </CustomTextField>
-        </Grid>
+        </Grid> */}
 
         {/* Filter Rentang Waktu */}
-        <Grid item xs={12} sm={4}>
+        <Grid item xs={12} sm={6}>
           <CustomTextField
             select
             fullWidth
-            label="Date Range"
+            label="Rentang Tanggal"
             id="select-date-range"
             value={dateRange}
             onChange={(e) => {
@@ -136,39 +183,40 @@ const TableFilters = ({
             }}
             SelectProps={{ displayEmpty: true }}
           >
-            <MenuItem value="">Current Date</MenuItem>
-            <MenuItem value="7d">Last 7 Days</MenuItem>
-            <MenuItem value="14d">Last 14 Days</MenuItem>
-            <MenuItem value="1m">Last 1 Month</MenuItem>
+            <MenuItem value="">Hari Ini </MenuItem>
+            <MenuItem value="7d">7 Hari Terakhir</MenuItem>
+            <MenuItem value="14d">14 Hari Terakhir</MenuItem>
+            <MenuItem value="1m">1 Bulan Terakhir</MenuItem>
+
           </CustomTextField>
         </Grid>
 
         {/* Filter Area */}
-        <Grid item xs={12} sm={4}>
-          <CustomTextField
-            select
-            fullWidth
-            label="Area"
-            id="select-area"
-            value={area}
-            onChange={(e) => {
-              setArea(e.target.value);
-              setIsFiltering(true);
-            }}
-            SelectProps={{ displayEmpty: true }}
-          >
-            <MenuItem value="">All Areas</MenuItem>
-            {areas.length > 0 ? (
-              areas.map((areaObj) => (
-                <MenuItem key={areaObj.id} value={areaObj.name}>
-                  {areaObj.name}
-                </MenuItem>
-              ))
-            ) : (
-              <MenuItem disabled>No areas available</MenuItem>
-            )}
-          </CustomTextField>
-        </Grid>
+        <Grid item xs={12} sm={6}>
+        <CustomTextField
+          select
+          fullWidth
+          label="Cabang"
+          id="select-area"
+          value={area}
+          onChange={(e) => {
+            setArea(e.target.value);
+            setIsFiltering(true);
+          }}
+          SelectProps={{ displayEmpty: true }}
+        >
+          <MenuItem value="">Semua Cabang</MenuItem>
+          {areas.length > 0 ? (
+            areas.map((areaObj) => (
+              <MenuItem key={areaObj.name} value={areaObj.name}>
+                {areaObj.name}
+              </MenuItem>
+            ))
+          ) : (
+            <MenuItem disabled>Tidak ada wilayah yang tersedia</MenuItem>
+          )}
+        </CustomTextField>
+      </Grid>
       </Grid>
     </CardContent>
   );

@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore"; // Tambahkan Firestore jika diperlukan
+import { getDatabase } from "firebase/database";
 
 // Konfigurasi Firebase menggunakan environment variables
 const firebaseConfig = {
@@ -18,6 +19,8 @@ const app = initializeApp(firebaseConfig);
 
 // Inisialisasi Firebase Authentication
 export const auth = getAuth(app);
+
+export const database = getDatabase(app); // 🔥 Inisialisasi Realtime Database
 
 // Inisialisasi Firestore (jika digunakan)
 export const firestore = getFirestore(app);

@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { firestore } from '@/libs/firebase/firebase';
+import { firestore,database } from '@/libs/firebase/firebase';
 import { collection, getDocs, getDoc,addDoc,setDoc, deleteDoc, doc, updateDoc, Timestamp,DocumentReference } from 'firebase/firestore';
 import { timeSpentToDate } from '@/utils/dateUtils';
 import { createCORSHeaders } from '@/utils/cors';
 import { AreaType } from '@/types/areaTypes';
 import { ShiftType } from '@/types/shiftTypes';
 import { UserRowType } from '@/types/userTypes';
+import { ref, set } from "firebase/database";
+
 import dayjs from 'dayjs';
+
+// import { Server } from "socket.io";
+
+// // **Pastikan WebSocket Server Hanya Dibuat Sekali**
+// let io: Server | null = null;
+
 // Interface untuk payload Attendance
 interface AttendancePayload {
   date: string;
@@ -325,6 +333,14 @@ export async function GET(req: Request) {
     ).then(records => records.filter((item): item is AttendanceRowType => item !== null));
     console.log(`✅ Attendance Data for` , attendanceData);
 
+    // / 🔥 **Kirim event WebSocket setelah semua relasi selesai**
+    // if (io) {
+    //   io.emit("attendanceUpdate", { message: "New data available" });
+    //   console.log("📢 WebSocket event sent: attendanceUpdate");
+    // }
+     // 🔥 Update trigger di Realtime Database
+    //  set(ref(database, "triggers/attendanceUpdate"), true);
+
     console.log("✅ Data fetch completed!");
 
     return new Response(JSON.stringify(attendanceData), {
@@ -361,7 +377,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
     }
     const userData = userSnap.data();
-    
+  
+    if (!Array.isArray(userData.areas) || userData.areas.length === 0) {
+      return NextResponse.json({ success: false, message: 'Shift data is missing or invalid' }, { status: 400 });
+    }
+
+    // Ambil semua shift data dari Firestore
+    const areaSnaps = await Promise.all(userData.areas.map(areaRef => getDoc(areaRef)));
+    const validArea = areaSnaps.filter(areaSnap => areaSnap.exists()).map(areaSnap => areaSnap.data() as AreaType);
+
+    if (validArea.length === 0) {
+      return NextResponse.json({ success: false, message: 'No valid area found' }, { status: 404 });
+    }
+
+    const selectedArea = validArea[0];
+
     // Ambil data shift dari referensi user
     if (!Array.isArray(userData.shifts) || userData.shifts.length === 0) {
       return NextResponse.json({ success: false, message: 'Shift data is missing or invalid' }, { status: 400 });
@@ -370,7 +400,6 @@ export async function POST(req: NextRequest) {
     // Ambil semua shift data dari Firestore
     const shiftSnaps = await Promise.all(userData.shifts.map(shiftRef => getDoc(shiftRef)));
     const validShifts = shiftSnaps.filter(shiftSnap => shiftSnap.exists()).map(shiftSnap => shiftSnap.data() as ShiftType);
-    
     if (validShifts.length === 0) {
       return NextResponse.json({ success: false, message: 'No valid shifts found' }, { status: 404 });
     }
@@ -387,15 +416,15 @@ export async function POST(req: NextRequest) {
     const lateBy = Math.max(0, now.diff(shiftStartTime, 'second'));
     const status = lateBy > 0 ? 'Late' : 'On Time';
     
-    // Simpan data ke Firestore
+    // // Simpan data ke Firestore
     const attendanceRef = doc(collection(firestore, `attendance/${userId}/day`), date);
     const attendanceData = {
       attendanceId: date,
       userId,
       name: userData.name,
       date,
-      // areas: userData.area,
-      shifts: validShifts.map(shift => shift.name), // Simpan semua shift
+      areas: selectedArea.name,
+      shifts: selectedShift.name, // Simpan semua shift
       avatar: userData.avatar || '',
       checkIn: {
         time: now.format('HH:mm A'),
