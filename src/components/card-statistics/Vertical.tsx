@@ -30,7 +30,7 @@ const CardStatsVertical = (props: CardStatsVerticalProps) => {
   } = props
 
   return (
-    <Card>
+    <Card >
       <CardContent className='flex flex-col gap-y-3 items-start'>
         <CustomAvatar variant='rounded' skin={avatarSkin} size={avatarSize} color={avatarColor}>
           <i className={classnames(avatarIcon, `text-[${avatarIconSize}px]`)} />
