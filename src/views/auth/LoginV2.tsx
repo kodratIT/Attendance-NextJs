@@ -4,10 +4,8 @@
 import { useState } from 'react'
 
 // Next Imports
-import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react';
-import jwt, { JwtPayload } from 'jsonwebtoken'
-import CryptoJS from 'crypto-js'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
 
 // MUI Imports
 import useMediaQuery from '@mui/material/useMediaQuery'
@@ -25,9 +23,9 @@ import classnames from 'classnames'
 
 // Type Imports
 import type { SystemMode } from '@core/types'
+import type { Locale } from '@configs/i18n'
 
 // Component Imports
-import Link from '@components/Link'
 import Logo from '@components/layout/shared/Logo'
 import CustomTextField from '@core/components/mui/TextField'
 
@@ -38,11 +36,8 @@ import themeConfig from '@configs/themeConfig'
 import { useImageVariant } from '@core/hooks/useImageVariant'
 import { useSettings } from '@core/hooks/useSettings'
 
-import axios from 'axios'; // Import axios
-
-
-// Constants
-const ENCRYPTION_KEY = 'your-encryption-key'
+// Util Imports
+import { getLocalizedUrl } from '@/utils/i18n'
 
 // Styled Custom Components
 const LoginIllustration = styled('img')(({ theme }) => ({
@@ -71,68 +66,31 @@ const MaskImg = styled('img')({
 const LoginV2 = ({ mode }: { mode: SystemMode }) => {
   // States
   const [isPasswordShown, setIsPasswordShown] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+
+  // Vars
+  const darkImg = '/images/pages/auth-mask-dark.png'
+  const lightImg = '/images/pages/auth-mask-light.png'
+  const darkIllustration = '/images/illustrations/auth/v2-login-dark.png'
+  const lightIllustration = '/images/illustrations/auth/v2-login-light.png'
+  const borderedDarkIllustration = '/images/illustrations/auth/v2-login-dark-border.png'
+  const borderedLightIllustration = '/images/illustrations/auth/v2-login-light-border.png'
 
   // Hooks
-  const router = useRouter()
+  const { lang: locale } = useParams()
   const { settings } = useSettings()
   const theme = useTheme()
   const hidden = useMediaQuery(theme.breakpoints.down('md'))
-  const authBackground = useImageVariant(mode, '/images/pages/auth-mask-light.png', '/images/pages/auth-mask-dark.png')
+  const authBackground = useImageVariant(mode, lightImg, darkImg)
 
-  // Handle password visibility
+  const characterIllustration = useImageVariant(
+    mode,
+    lightIllustration,
+    darkIllustration,
+    borderedLightIllustration,
+    borderedDarkIllustration
+  )
+
   const handleClickShowPassword = () => setIsPasswordShown(show => !show)
-
-  // Handle login process
-
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    // try {
-    //   const response = await axios.post('/api/auth/login', {
-    //     email,
-    //     password
-    //   });
-
-    //   const data = response.data;
-    //   console.log(data)
-    //   const decodedToken = jwt.decode(data.token) as JwtPayload;
-
-    //   if (decodedToken?.mustChangePassword) {
-    //     const encryptedEmail = CryptoJS.AES.encrypt(email, ENCRYPTION_KEY).toString();
-    //     localStorage.setItem('encryptedEmail', encryptedEmail);
-    //     await router.push('/home');
-    //   } else {
-    //   }
-    // } catch (error) {
-    //   if (axios.isAxiosError(error) && error.response) {
-    //     setError(error.response.data.message || 'Login failed');
-    //   } else {
-    //     setError('An unexpected error occurred');
-    //   }
-    // } finally {
-    //   setLoading(false);
-    // }
-
-    // event.preventDefault();
-    const result = await signIn('credentials', {
-      redirect: false, // Prevents redirect after sign-in attempt
-      email,
-      password
-    });
-
-    console.log(result)
-    if (result?.error) {
-      alert(result.error);
-    } else {
-      // Redirect to dashboard or home page upon successful login
-      window.location.href = '/home';
-    }
-  };
 
   return (
     <div className='flex bs-full justify-center'>
@@ -144,6 +102,7 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
           }
         )}
       >
+        <LoginIllustration src={characterIllustration} alt='character-illustration' />
         {!hidden && (
           <MaskImg
             alt='mask'
@@ -153,7 +112,10 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
         )}
       </div>
       <div className='flex justify-center items-center bs-full bg-backgroundPaper !min-is-full p-6 md:!min-is-[unset] md:p-12 md:is-[480px]'>
-        <Link className='absolute block-start-5 sm:block-start-[33px] inline-start-6 sm:inline-start-[38px]'>
+        <Link
+          href={getLocalizedUrl('/', locale as Locale)}
+          className='absolute block-start-5 sm:block-start-[33px] inline-start-6 sm:inline-start-[38px]'
+        >
           <Logo />
         </Link>
         <div className='flex flex-col gap-6 is-full sm:is-auto md:is-full sm:max-is-[400px] md:max-is-[unset] mbs-11 sm:mbs-14 md:mbs-0'>
@@ -161,41 +123,63 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
             <Typography variant='h4'>{`Welcome to ${themeConfig.templateName}! 👋🏻`}</Typography>
             <Typography>Please sign-in to your account and start the adventure</Typography>
           </div>
-          <form onSubmit={handleLogin} className='flex flex-col gap-5'>
-            <CustomTextField
-              autoFocus
-              fullWidth
-              label='Email or Username'
-              placeholder='Enter your email or username'
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+          <form noValidate autoComplete='off' onSubmit={e => e.preventDefault()} className='flex flex-col gap-6'>
+            <CustomTextField autoFocus fullWidth label='Email or Username' placeholder='Enter your email or username' />
             <CustomTextField
               fullWidth
               label='Password'
               placeholder='············'
+              id='outlined-adornment-password'
               type={isPasswordShown ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position='end'>
-                    <IconButton edge='end' onClick={handleClickShowPassword} onMouseDown={(e) => e.preventDefault()}>
+                    <IconButton edge='end' onClick={handleClickShowPassword} onMouseDown={e => e.preventDefault()}>
                       <i className={isPasswordShown ? 'tabler-eye-off' : 'tabler-eye'} />
                     </IconButton>
                   </InputAdornment>
                 )
               }}
-              required
             />
             <div className='flex justify-between items-center gap-x-3 gap-y-1 flex-wrap'>
               <FormControlLabel control={<Checkbox />} label='Remember me' />
+              <Typography
+                className='text-end'
+                color='primary'
+                component={Link}
+                href={getLocalizedUrl('/pages/auth/forgot-password-v2', locale as Locale)}
+              >
+                Forgot password?
+              </Typography>
             </div>
-            <Button fullWidth variant='contained' type='submit' disabled={loading}>
-              {loading ? 'Processing...' : 'Login'}
+            <Button fullWidth variant='contained' type='submit'>
+              Login
             </Button>
-            {error && <Typography color='error'>{error}</Typography>}
+            <div className='flex justify-center items-center flex-wrap gap-2'>
+              <Typography>New on our platform?</Typography>
+              <Typography
+                component={Link}
+                href={getLocalizedUrl('/pages/auth/register-v2', locale as Locale)}
+                color='primary'
+              >
+                Create an account
+              </Typography>
+            </div>
+            <Divider className='gap-2 text-textPrimary'>or</Divider>
+            <div className='flex justify-center items-center gap-1.5'>
+              <IconButton className='text-facebook' size='small'>
+                <i className='tabler-brand-facebook-filled' />
+              </IconButton>
+              <IconButton className='text-twitter' size='small'>
+                <i className='tabler-brand-twitter-filled' />
+              </IconButton>
+              <IconButton className='text-textPrimary' size='small'>
+                <i className='tabler-brand-github-filled' />
+              </IconButton>
+              <IconButton className='text-error' size='small'>
+                <i className='tabler-brand-google-filled' />
+              </IconButton>
+            </div>
           </form>
         </div>
       </div>
