@@ -1,10 +1,11 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState,useEffect } from 'react'
 
 // Next Imports
 import { useRouter } from 'next/navigation'
+import Cookies from 'js-cookie';
 
 // MUI Imports
 import useMediaQuery from '@mui/material/useMediaQuery'
@@ -35,6 +36,11 @@ import themeConfig from '@configs/themeConfig'
 import { useImageVariant } from '@core/hooks/useImageVariant'
 import { useSettings } from '@core/hooks/useSettings'
 
+// Import Firebase authentication
+import { auth } from '@/libs/firebase/firebase'; // adjust the path to your Firebase config
+import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { jwtDecode } from 'jwt-decode';
+
 // Styled Custom Components
 const LoginIllustration = styled('img')(({ theme }) => ({
   zIndex: 2,
@@ -60,6 +66,8 @@ const MaskImg = styled('img')({
 })
 
 const LoginV2 = ({ mode }: { mode: SystemMode }) => {
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   // States
   const [isPasswordShown, setIsPasswordShown] = useState(false)
 
@@ -86,7 +94,61 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
     borderedDarkIllustration
   )
 
+  useEffect(() => {
+    const token = Cookies.get('token'); // Get the token from cookies
+    if (token) {
+      try {
+        const decoded = jwtDecode<{ exp: number }>(token);
+        const currentTime = Date.now() / 1000; // Current time in seconds
+        if (decoded.exp > currentTime) {
+          router.push('/home'); // Redirect to home if token is valid
+        } else {
+          console.log('Token is expired');
+          router.push('/login'); // Redirect to login if token is expired
+        }
+      } catch (error) {
+        console.error('Error decoding token:', error);
+        router.push('/login'); // Redirect to login on decoding error
+      }
+    } else {
+      router.push('/login'); // Redirect to login if no token
+    }
+  }, [router]);
+
   const handleClickShowPassword = () => setIsPasswordShown(show => !show)
+
+  const handleLogin = async (event: any) => {
+  event.preventDefault();
+
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const token = await userCredential.user.getIdToken();
+    Cookies.set('token', token, { expires: 1 / 24 }); // Token expires in 1 hour
+
+    // Pengecekan token apakah masih valid
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          // Coba perbarui token untuk mengecek validitas
+          const freshToken = await user.getIdToken(true);
+          console.log('Token is refreshed and valid:', freshToken);
+          Cookies.set('token', freshToken, { expires: 1 / 24 }); // Refresh the cookie with the new token
+          router.push('/home'); // Redirect to home if token is valid
+        } catch (error) {
+          console.error('Error refreshing token:', error);
+          // Handle token refresh errors (e.g., redirect to login page)
+        }
+      } else {
+        console.log('No user is signed in or token is expired.');
+        // Redirect to login or handle the case where token is invalid/expired
+      }
+    });
+
+  } catch (error) {
+    console.error('Login Error:', error);
+    // Optionally handle errors (e.g., display error message)
+  }
+};
 
   return (
     <div className='flex bs-full justify-center'>
@@ -116,22 +178,20 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
             <Typography variant='h4'>{`Welcome to ${themeConfig.templateName}! 👋🏻`}</Typography>
             <Typography>Please sign-in to your account and start the adventure</Typography>
           </div>
-          <form
+          <form 
             noValidate
             autoComplete='off'
-            onSubmit={e => {
-              e.preventDefault()
-              router.push('/')
-            }}
+            onSubmit={handleLogin}
             className='flex flex-col gap-5'
           >
-            <CustomTextField autoFocus fullWidth label='Email or Username' placeholder='Enter your email or username' />
+            <CustomTextField autoFocus fullWidth label='Email or Username' placeholder='Enter your email or username' onChange={(e) => setEmail(e.target.value)} />
             <CustomTextField
               fullWidth
               label='Password'
               placeholder='············'
               id='outlined-adornment-password'
               type={isPasswordShown ? 'text' : 'password'}
+              onChange={(e) => setPassword(e.target.value)}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position='end'>
@@ -142,36 +202,9 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
                 )
               }}
             />
-            <div className='flex justify-between items-center gap-x-3 gap-y-1 flex-wrap'>
-              <FormControlLabel control={<Checkbox />} label='Remember me' />
-              <Typography className='text-end' color='primary' component={Link}>
-                Forgot password?
-              </Typography>
-            </div>
             <Button fullWidth variant='contained' type='submit'>
               Login
             </Button>
-            <div className='flex justify-center items-center flex-wrap gap-2'>
-              <Typography>New on our platform?</Typography>
-              <Typography component={Link} color='primary'>
-                Create an account
-              </Typography>
-            </div>
-            <Divider className='gap-2 text-textPrimary'>or</Divider>
-            <div className='flex justify-center items-center gap-1.5'>
-              <IconButton className='text-facebook' size='small'>
-                <i className='tabler-brand-facebook-filled' />
-              </IconButton>
-              <IconButton className='text-twitter' size='small'>
-                <i className='tabler-brand-twitter-filled' />
-              </IconButton>
-              <IconButton className='text-textPrimary' size='small'>
-                <i className='tabler-brand-github-filled' />
-              </IconButton>
-              <IconButton className='text-error' size='small'>
-                <i className='tabler-brand-google-filled' />
-              </IconButton>
-            </div>
           </form>
         </div>
       </div>

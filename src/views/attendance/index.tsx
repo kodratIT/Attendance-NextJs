@@ -64,6 +64,12 @@ import axios from 'axios'
 import {database} from "@/libs/firebase/firebase";
 import { ref, onValue, set } from "firebase/database";
 
+import { useRouter } from 'next/navigation'
+import Cookies from 'js-cookie';
+import {jwtDecode} from 'jwt-decode';
+
+
+
 // //gagal socket Io
 // import io from "socket.io-client";
 
@@ -166,6 +172,28 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   const [loading,setLoading] = useState<boolean>(false)
 
   const getColorByLateBy = (lateBy: number) => (lateBy === 0 ? "OnTime" : "Late");
+  const router = useRouter()
+  useEffect(() => {
+    const token = Cookies.get('token'); // Get the token from cookies
+    if (token) {
+      try {
+        const decoded = jwtDecode<{ exp: number }>(token);
+        const currentTime = Date.now() / 1000; // Current time in seconds
+        if (decoded.exp > currentTime) {
+          // router.push('/home'); // Redirect to home if token is valid
+        } else {
+          console.log('Token is expired');
+          router.push('/login'); // Redirect to login if token is expired
+        }
+      } catch (error) {
+        console.error('Error decoding token:', error);
+        router.push('/login'); // Redirect to login on decoding error
+      }
+    } else {
+      router.push('/login'); // Redirect to login if no token
+    }
+  }, [router]);
+
 
   const fetchData = async () => {
     try {
