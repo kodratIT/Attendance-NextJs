@@ -1,11 +1,11 @@
 'use client'
 
 // React Imports
-import { useState,useEffect } from 'react'
+import { useState } from 'react'
 
 // Next Imports
-import { useRouter } from 'next/navigation'
-import Cookies from 'js-cookie';
+import Link from 'next/link'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 
 // MUI Imports
 import useMediaQuery from '@mui/material/useMediaQuery'
@@ -17,15 +17,22 @@ import Checkbox from '@mui/material/Checkbox'
 import Button from '@mui/material/Button'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Divider from '@mui/material/Divider'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
+import { signIn } from 'next-auth/react'
+import { Controller, useForm } from 'react-hook-form'
+import { valibotResolver } from '@hookform/resolvers/valibot'
+import { email, object, minLength, string, pipe, nonEmpty } from 'valibot'
+import type { SubmitHandler } from 'react-hook-form'
+import type { InferInput } from 'valibot'
 import classnames from 'classnames'
 
 // Type Imports
 import type { SystemMode } from '@core/types'
+import type { Locale } from '@/configs/i18n'
 
 // Component Imports
-import Link from '@components/Link'
 import Logo from '@components/layout/shared/Logo'
 import CustomTextField from '@core/components/mui/TextField'
 
@@ -36,10 +43,8 @@ import themeConfig from '@configs/themeConfig'
 import { useImageVariant } from '@core/hooks/useImageVariant'
 import { useSettings } from '@core/hooks/useSettings'
 
-// Import Firebase authentication
-import { auth } from '@/libs/firebase/firebase'; // adjust the path to your Firebase config
-import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
-import { jwtDecode } from 'jwt-decode';
+// Util Imports
+import { getLocalizedUrl } from '@/utils/i18n'
 
 // Styled Custom Components
 const LoginIllustration = styled('img')(({ theme }) => ({
@@ -65,11 +70,25 @@ const MaskImg = styled('img')({
   zIndex: -1
 })
 
-const LoginV2 = ({ mode }: { mode: SystemMode }) => {
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+type ErrorType = {
+  message: string[]
+}
+
+type FormData = InferInput<typeof schema>
+
+const schema = object({
+  email: pipe(string(), minLength(1, 'This field is required'), email('Email is invalid')),
+  password: pipe(
+    string(),
+    nonEmpty('This field is required'),
+    minLength(5, 'Password must be at least 5 characters long')
+  )
+})
+
+const Login = ({ mode }: { mode: SystemMode }) => {
   // States
   const [isPasswordShown, setIsPasswordShown] = useState(false)
+  const [errorState, setErrorState] = useState<ErrorType | null>(null)
 
   // Vars
   const darkImg = '/images/pages/auth-mask-dark.png'
@@ -81,10 +100,24 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
 
   // Hooks
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { lang: locale } = useParams()
   const { settings } = useSettings()
   const theme = useTheme()
   const hidden = useMediaQuery(theme.breakpoints.down('md'))
   const authBackground = useImageVariant(mode, lightImg, darkImg)
+
+  const {
+    control,
+    handleSubmit,
+    formState: { errors }
+  } = useForm<FormData>({
+    resolver: valibotResolver(schema),
+    defaultValues: {
+      email: 'kodratcoc@gmail.com',
+      password: 'password123'
+    }
+  })
 
   const characterIllustration = useImageVariant(
     mode,
@@ -94,61 +127,27 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
     borderedDarkIllustration
   )
 
-  useEffect(() => {
-    const token = Cookies.get('token'); // Get the token from cookies
-    if (token) {
-      try {
-        const decoded = jwtDecode<{ exp: number }>(token);
-        const currentTime = Date.now() / 1000; // Current time in seconds
-        if (decoded.exp > currentTime) {
-          router.push('/home'); // Redirect to home if token is valid
-        } else {
-          console.log('Token is expired');
-          router.push('/login'); // Redirect to login if token is expired
-        }
-      } catch (error) {
-        console.error('Error decoding token:', error);
-        router.push('/login'); // Redirect to login on decoding error
-      }
-    } else {
-      router.push('/login'); // Redirect to login if no token
-    }
-  }, [router]);
-
   const handleClickShowPassword = () => setIsPasswordShown(show => !show)
 
-  const handleLogin = async (event: any) => {
-  event.preventDefault();
+  const onSubmit: SubmitHandler<FormData> = async (data: FormData) => {
+    const res = await signIn('credentials', {
+      email: data.email,
+      password: data.password,
+      redirect: false
+    })
 
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const token = await userCredential.user.getIdToken();
-    Cookies.set('token', token, { expires: 1 / 24 }); // Token expires in 1 hour
+    if (res && res.ok && res.error === null) {
+      // Vars
+      // const redirectURL = searchParams.get('redirectTo') ?? '/'
+      router.push('/home')
+    } else {
+      if (res?.error) {
+        const error = JSON.parse(res.error)
 
-    // Pengecekan token apakah masih valid
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          // Coba perbarui token untuk mengecek validitas
-          const freshToken = await user.getIdToken(true);
-          console.log('Token is refreshed and valid:', freshToken);
-          Cookies.set('token', freshToken, { expires: 1 / 24 }); // Refresh the cookie with the new token
-          router.push('/home'); // Redirect to home if token is valid
-        } catch (error) {
-          console.error('Error refreshing token:', error);
-          // Handle token refresh errors (e.g., redirect to login page)
-        }
-      } else {
-        console.log('No user is signed in or token is expired.');
-        // Redirect to login or handle the case where token is invalid/expired
+        setErrorState(error)
       }
-    });
-
-  } catch (error) {
-    console.error('Login Error:', error);
-    // Optionally handle errors (e.g., display error message)
+    }
   }
-};
 
   return (
     <div className='flex bs-full justify-center'>
@@ -161,47 +160,79 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
         )}
       >
         <LoginIllustration src={characterIllustration} alt='character-illustration' />
-        {!hidden && (
-          <MaskImg
-            alt='mask'
-            src={authBackground}
-            className={classnames({ 'scale-x-[-1]': theme.direction === 'rtl' })}
-          />
-        )}
+        {!hidden && <MaskImg alt='mask' src={authBackground} />}
       </div>
       <div className='flex justify-center items-center bs-full bg-backgroundPaper !min-is-full p-6 md:!min-is-[unset] md:p-12 md:is-[480px]'>
-        <Link className='absolute block-start-5 sm:block-start-[33px] inline-start-6 sm:inline-start-[38px]'>
+        <div className='absolute block-start-5 sm:block-start-[33px] inline-start-6 sm:inline-start-[38px]'>
           <Logo />
-        </Link>
-        <div className='flex flex-col gap-6 is-full sm:is-auto md:is-full sm:max-is-[400px] md:max-is-[unset] mbs-11 sm:mbs-14 md:mbs-0'>
+        </div>
+        <div className='flex flex-col gap-6 is-full sm:is-auto md:is-full sm:max-is-[400px] md:max-is-[unset] mbs-8 sm:mbs-11 md:mbs-0'>
           <div className='flex flex-col gap-1'>
             <Typography variant='h4'>{`Welcome to ${themeConfig.templateName}! 👋🏻`}</Typography>
             <Typography>Please sign-in to your account and start the adventure</Typography>
           </div>
-          <form 
+          <form
             noValidate
             autoComplete='off'
-            onSubmit={handleLogin}
-            className='flex flex-col gap-5'
+            action={() => {}}
+            onSubmit={handleSubmit(onSubmit)}
+            className='flex flex-col gap-6'
           >
-            <CustomTextField autoFocus fullWidth label='Email or Username' placeholder='Enter your email or username' onChange={(e) => setEmail(e.target.value)} />
-            <CustomTextField
-              fullWidth
-              label='Password'
-              placeholder='············'
-              id='outlined-adornment-password'
-              type={isPasswordShown ? 'text' : 'password'}
-              onChange={(e) => setPassword(e.target.value)}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position='end'>
-                    <IconButton edge='end' onClick={handleClickShowPassword} onMouseDown={e => e.preventDefault()}>
-                      <i className={isPasswordShown ? 'tabler-eye-off' : 'tabler-eye'} />
-                    </IconButton>
-                  </InputAdornment>
-                )
-              }}
+            <Controller
+              name='email'
+              control={control}
+              rules={{ required: true }}
+              render={({ field }) => (
+                <CustomTextField
+                  {...field}
+                  autoFocus
+                  fullWidth
+                  type='email'
+                  label='Email'
+                  placeholder='Enter your email'
+                  onChange={e => {
+                    field.onChange(e.target.value)
+                    errorState !== null && setErrorState(null)
+                  }}
+                  {...((errors.email || errorState !== null) && {
+                    error: true,
+                    helperText: errors?.email?.message || errorState?.message[0]
+                  })}
+                />
+              )}
             />
+            <Controller
+              name='password'
+              control={control}
+              rules={{ required: true }}
+              render={({ field }) => (
+                <CustomTextField
+                  {...field}
+                  fullWidth
+                  label='Password'
+                  placeholder='············'
+                  id='login-password'
+                  type={isPasswordShown ? 'text' : 'password'}
+                  onChange={e => {
+                    field.onChange(e.target.value)
+                    errorState !== null && setErrorState(null)
+                  }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position='end'>
+                        <IconButton edge='end' onClick={handleClickShowPassword} onMouseDown={e => e.preventDefault()}>
+                          <i className={isPasswordShown ? 'tabler-eye' : 'tabler-eye-off'} />
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
+                  {...(errors.password && { error: true, helperText: errors.password.message })}
+                />
+              )}
+            />
+            <div className='flex justify-between items-center gap-x-3 gap-y-1 flex-wrap'>
+              <FormControlLabel control={<Checkbox defaultChecked />} label='Remember me' />
+            </div>
             <Button fullWidth variant='contained' type='submit'>
               Login
             </Button>
@@ -212,4 +243,4 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
   )
 }
 
-export default LoginV2
+export default Login

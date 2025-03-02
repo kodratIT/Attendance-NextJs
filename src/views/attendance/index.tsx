@@ -173,26 +173,26 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
 
   const getColorByLateBy = (lateBy: number) => (lateBy === 0 ? "OnTime" : "Late");
   const router = useRouter()
-  useEffect(() => {
-    const token = Cookies.get('token'); // Get the token from cookies
-    if (token) {
-      try {
-        const decoded = jwtDecode<{ exp: number }>(token);
-        const currentTime = Date.now() / 1000; // Current time in seconds
-        if (decoded.exp > currentTime) {
-          // router.push('/home'); // Redirect to home if token is valid
-        } else {
-          console.log('Token is expired');
-          router.push('/login'); // Redirect to login if token is expired
-        }
-      } catch (error) {
-        console.error('Error decoding token:', error);
-        router.push('/login'); // Redirect to login on decoding error
-      }
-    } else {
-      router.push('/login'); // Redirect to login if no token
-    }
-  }, [router]);
+  // useEffect(() => {
+  //   const token = Cookies.get('token'); // Get the token from cookies
+  //   if (token) {
+  //     try {
+  //       const decoded = jwtDecode<{ exp: number }>(token);
+  //       const currentTime = Date.now() / 1000; // Current time in seconds
+  //       if (decoded.exp > currentTime) {
+  //         // router.push('/home'); // Redirect to home if token is valid
+  //       } else {
+  //         console.log('Token is expired');
+  //         router.push('/login'); // Redirect to login if token is expired
+  //       }
+  //     } catch (error) {
+  //       console.error('Error decoding token:', error);
+  //       router.push('/login'); // Redirect to login on decoding error
+  //     }
+  //   } else {
+  //     router.push('/login'); // Redirect to login if no token
+  //   }
+  // }, [router]);
 
 
   const fetchData = async () => {
