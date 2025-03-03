@@ -60,6 +60,9 @@ import { formatSecondsToTime } from '@/utils/dateUtils'
 import tableStyles from '@core/styles/table.module.css'
 
 import axios from 'axios'
+
+import * as XLSX from 'xlsx';
+
 type Colors = {
   [key: string]: ThemeColor
 }
@@ -86,6 +89,10 @@ export interface Attendance {
   lateBy: number;
   status: string;
   workingHours: number;
+}
+
+interface AttendanceMapping {
+  [userId: string]: Attendance[];
 }
 
 const processAttendanceData = (rawData: Record<string, Attendance[]>): Attendance[] => {
@@ -195,9 +202,10 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState(...[tableData])
   const [filteredData, setFilteredData] = useState(data)
-  const [excelData, setExcelData] = useState([])
+  const [excelData, setExcelData] = useState<AttendanceMapping[]>([]);
   const [globalFilter, setGlobalFilter] = useState('')
   const [loading,setLoading] = useState<boolean>(false)
+  const [loadingDownload,setLoadingDownload] = useState<boolean>(false)
 
   const fetchData = async () => {
     try {
@@ -216,6 +224,9 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
         `${process.env.NEXT_PUBLIC_API_URL}/api/report?fromDate=${formattedToDate}&toDate=${formattedToDate}`
       );
 
+      setExcelData(res.data)
+
+      console.log(excelData)
       setData(res.data)
 
       setLoading(false);
@@ -288,8 +299,8 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
       header: 'Aksi',
       cell: ({ row }) => (
         <div className='flex items-center'>
-          <OptionMenu
-            iconButtonProps={{ size: 'medium' }}
+          {/* <OptionMenu
+            iconButtonProps={{ size: 'medium', onClick: (e) => e.stopPropagation() }} // Prevent row click events
             iconClassName='text-textSecondary'
             options={[
               {
@@ -298,9 +309,13 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
                 menuItemProps: { className: 'flex items-center gap-2 text-textSecondary' }
               }
             ]}
-          />
+          /> */}
+          <IconButton onClick={()=> handleDownloadExcel(row.original.userId)} disabled={loadingDownload}>
+                  {loadingDownload ? <CircularProgress size={24} /> : <i className="tabler-download text-blue-500" />}
+          </IconButton>
+
         </div>
-      ),
+      ),    
       enableSorting: false
     })
   ], [data, filteredData]);
@@ -344,10 +359,66 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
     }
   }
 
+  const handleDownloadExcel = (userId: any) => {
+    try {
+        // Ensure that excelData is defined and has the key for the provided userId
+        if (!excelData) {
+            alert("No data found for the selected user.");
+            return;
+        }
+
+        // const report = excelData[userId]
+        const filterData = excelData[userId]
+
+        // Call the function to download Excel
+        if (Array.isArray(filterData)) {
+          const formattedData = filterData.map(record => ({
+            'Tanggal': record.date,
+            'User ID': record.userId,
+            'Nama': record.name,
+            'Cabang' : record.areas,
+            'Shifs': record.shifts,
+            'Jam Masuk': record.checkIn.time,
+            'Jam Keluar': record.checkOut.time,
+            'Pulang Lebih Awal': formatSecondsToTime(record.earlyLeaveBy),
+            'Jam Telat': formatSecondsToTime(record.lateBy),
+            'Waktu Bekerja': formatSecondsToTime(record.workingHours),
+            'Status': record.status,
+            // Tambahkan atau sesuaikan field sesuai kebutuhan
+        }));
+
+          downloadExcel(formattedData, `AttendanceReport-${userId}`);
+        } else {
+          alert("Invalid data format");
+          return;
+        }
+    } catch (error) {
+        // This will catch any other errors that might occur in the process, such as during filtering or file creation
+        console.error("Error downloading the Excel file:", error);
+        alert("Failed to download the report. Please try again.");
+    }
+};
+
+const downloadExcel = (data: any[], fileName: string) => {
+    try {
+        const workbook = XLSX.utils.book_new();
+       
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
+        
+        // Buffer the workbook and initiate download
+        XLSX.writeFile(workbook, `${fileName}.xlsx`);
+    } catch (error) {
+        console.error("Failed to create Excel file:", error);
+        throw error; // Optional: rethrow to handle it further up in your application if needed
+    }
+};
+
+  
   return (
     <>
       <Card>
-        <TableFilters setLoading={setLoading} setData={setFilteredData} tableData={tableData} />
+        <TableFilters setLoading={setLoading} setData={setFilteredData} tableData={tableData} setExcelData={setExcelData} />
         
         <div className='flex justify-between flex-col items-start md:flex-row md:items-center p-6 border-bs gap-4'>
         <div className="flex items-center gap-2">
@@ -374,14 +445,14 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
               placeholder='Pencarian Pengguna'
               className='is-full sm:is-auto'
             />
-            <Button
+            {/* <Button
               color='primary'
               variant='tonal'
               startIcon={<i className='tabler-upload' />}
               className='is-full sm:is-auto'
             >
               Export
-            </Button>
+            </Button> */}
           </div>
         </div>
         <div className='overflow-x-auto'>

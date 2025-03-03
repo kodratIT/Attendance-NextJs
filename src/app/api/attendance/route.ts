@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { firestore,database } from '@/libs/firebase/firebase';
 import { collection, getDocs, getDoc,addDoc,setDoc, deleteDoc, doc, updateDoc, Timestamp,DocumentReference } from 'firebase/firestore';
-import { timeSpentToDate } from '@/utils/dateUtils';
+import { formatTime, timeSpentToDate } from '@/utils/dateUtils';
 import { createCORSHeaders } from '@/utils/cors';
 import { AreaType } from '@/types/areaTypes';
 import { ShiftType } from '@/types/shiftTypes';
 import { UserRowType } from '@/types/userTypes';
 import { ref, set } from "firebase/database";
+
 
 import dayjs from 'dayjs';
 
@@ -408,14 +409,44 @@ export async function POST(req: NextRequest) {
 
     // Pilih shift yang paling sesuai berdasarkan waktu
     const date = dayjs().format('YYYY-MM-DD');
-    const now = dayjs();
-    const selectedShift = validShifts.find(shift => now.isBefore(dayjs(`${date} ${shift.end_time}`))) || validShifts[0];
+    // const now = dayjs();
+    // const selectedShift = validShifts.find(shift => now.isBefore(dayjs(`${date} ${shift.end_time}`))) || validShifts[0];
+
+    const now = new Date();
+    const localOffset = now.getTimezoneOffset() * 60000; // Mendapatkan offset waktu lokal dalam milidetik
+    const gmt7Offset = 7 * 3600000; // Offset GMT+7 dalam milidetik
+    const nowInGMT7 = new Date(now.getTime() + localOffset + gmt7Offset); // Mengatur waktu saat ini ke GMT+7
+    
+    // Menemukan shift yang sesuai
+    const selectedShift = validShifts.find(shift => {
+        const today = nowInGMT7.toISOString().split('T')[0]; // Mengambil hanya bagian tanggal YYYY-MM-DD
+        const shiftEndTimeStr = `${today}T${shift.end_time}:00+07:00`;
+        const shiftEndTime = new Date(shiftEndTimeStr);
+    
+        // Handle kasus dimana shift berakhir keesokan harinya
+        if (shift.end_time < shift.start_time) {
+            shiftEndTime.setDate(shiftEndTime.getDate() + 1);
+        }
+    
+        return nowInGMT7 < shiftEndTime;
+    }) || validShifts[0];  // Jika tidak ada yang cocok, default ke shift pertama
     
     // Hitung keterlambatan
-    const shiftStartTime = dayjs(`${date} ${selectedShift.start_time}`);
-    const lateBy = Math.max(0, now.diff(shiftStartTime, 'second'));
+    const shiftStartTimeStr = `${nowInGMT7.toISOString().split('T')[0]}T${selectedShift.start_time}:00+07:00`;
+    const shiftStartTime = new Date(shiftStartTimeStr);
+    const lateBy = Math.max(0, (nowInGMT7.getTime() - shiftStartTime.getTime()) / 1000);
+      // // Hitung keterlambatan
+    // const lateBy = Math.max(0, nowInGMT7.diff(shiftStartTime, 'second'));
+
+  
+    // const shiftStartTime = dayjs(`${date} ${selectedShift.start_time}`);
+    
     const status = lateBy > 0 ? 'Late' : 'On Time';
     
+    const timestamp = Timestamp.now();
+    const dateGMT7 = timestamp.toDate(); // Konversi ke JavaScript Date object
+    const localDate = new Date(dateGMT7.getTime() + (7 * 60 * 60 * 1000)); // Tambahkan 7 jam
+
     // // Simpan data ke Firestore
     const attendanceRef = doc(collection(firestore, `attendance/${userId}/day`), date);
     const attendanceData = {
@@ -427,7 +458,7 @@ export async function POST(req: NextRequest) {
       shifts: selectedShift.name, // Simpan semua shift
       avatar: userData.avatar || '',
       checkIn: {
-        time: now.format('HH:mm A'),
+        time: formatTime(nowInGMT7),
         faceVerified: false,
         location: { latitude: 0, longitude: 0, name: 'Unknown' }
       },
@@ -436,8 +467,8 @@ export async function POST(req: NextRequest) {
         faceVerified: false,
         location: { latitude: 0, longitude: 0, name: 'Unknown' }
       },
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
+      createdAt: localDate,
+      updatedAt: localDate,
       earlyLeaveBy: 0,
       lateBy,
       status,
@@ -492,25 +523,49 @@ export async function PUT(req: NextRequest) {
     if (validShifts.length === 0) {
       return NextResponse.json({ success: false, message: 'No valid shifts found' }, { status: 404 });
     }
+
+    const now = new Date();
+    const localOffset = now.getTimezoneOffset() * 60000; // Mendapatkan offset waktu lokal dalam milidetik
+    const gmt7Offset = 7 * 3600000; // Offset GMT+7 dalam milidetik
+    const nowInGMT7 = new Date(now.getTime() + localOffset + gmt7Offset); // Mengatur waktu saat ini ke GMT+7
+
+    // Menemukan shift yang sesuai
+    const selectedShift = validShifts.find(shift => {
+        const today = nowInGMT7.toISOString().split('T')[0]; // Mengambil hanya bagian tanggal YYYY-MM-DD
+        const shiftEndTimeStr = `${today}T${shift.end_time}:00+07:00`;
+        const shiftEndTime = new Date(shiftEndTimeStr);
+
+        // Handle kasus dimana shift berakhir keesokan harinya
+        if (shift.end_time < shift.start_time) {
+            shiftEndTime.setDate(shiftEndTime.getDate() + 1);
+        }
+
+        return nowInGMT7 < shiftEndTime;
+    }) || validShifts[0];  // Jika tidak ada yang cocok, default ke shift pertama
+
     
-    // Pilih shift yang sesuai berdasarkan waktu
-    const now = dayjs();
-    const selectedShift = validShifts.find(shift => now.isBefore(dayjs(`${date} ${shift.end_time}`))) || validShifts[0];
+    // // Pilih shift yang sesuai berdasarkan waktu
+    // const now = dayjs();
+    // const selectedShift = validShifts.find(shift => now.isBefore(dayjs(`${date} ${shift.end_time}`))) || validShifts[0];
     
     const shiftEndTime = dayjs(`${date} ${selectedShift.end_time}`);
-    const earlyLeaveBy = Math.max(0, shiftEndTime.diff(now, 'second'));
+    const earlyLeaveBy = Math.max(0, shiftEndTime.diff(nowInGMT7, 'second'));
     
+    const timestamp = Timestamp.now();
+    const dateGMT7 = timestamp.toDate(); // Konversi ke JavaScript Date object
+    const localDate = new Date(dateGMT7.getTime() + (7 * 60 * 60 * 1000)); // Tambahkan 7 jam
+
     // Update data checkout
     const updatedAttendanceData = {
       ...attendanceData,
       checkOut: {
-        time: now.format('HH:mm A'),
+        time: formatTime(nowInGMT7),
         faceVerified: false,
         location: { latitude: 0, longitude: 0, name: 'Unknown' }
       },
       earlyLeaveBy,
       verifyOwner: false,
-      updatedAt: Timestamp.now(),
+      updatedAt: localDate,
     };
 
     await setDoc(attendanceRef, updatedAttendanceData);

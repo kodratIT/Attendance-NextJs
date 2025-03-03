@@ -35,6 +35,10 @@ export interface Attendance {
   workingHours: number;
 }
 
+interface AttendanceMapping {
+  [userId: string]: Attendance[];
+}
+
 
 const processAttendanceData = (rawData: Record<string, AttendanceRowType[]>): AttendanceRowType[] => {
   const processedData: Record<string, AttendanceRowType> = {};
@@ -58,10 +62,12 @@ const TableFilters = ({
   setLoading,
   setData,
   tableData,
+  setExcelData
 }: {
   setLoading: (loading: boolean) => void;
   setData: (data: AttendanceRowType[]) => void;
   tableData?: AttendanceRowType[];
+  setExcelData:(data: AttendanceMapping[]) => void;
 }) => {
   // States
   const [status, setStatus] = useState<AttendanceRowType['status']>('');
@@ -120,7 +126,7 @@ const TableFilters = ({
         const res = await axios.get(
           `${process.env.NEXT_PUBLIC_API_URL}/api/report?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
         );
-                                
+                             
         let b =processAttendanceData(res.data)
         let filteredData = b;
 
@@ -134,6 +140,7 @@ const TableFilters = ({
         }
         
 
+        setExcelData(res.data)
         setData(filteredData);
         setLoading(false);
       } catch (error) {
