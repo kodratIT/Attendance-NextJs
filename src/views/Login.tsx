@@ -18,6 +18,8 @@ import Button from '@mui/material/Button'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Divider from '@mui/material/Divider'
 import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress';
+
 
 // Third-party Imports
 import { signIn } from 'next-auth/react'
@@ -89,9 +91,12 @@ const Login = ({ mode }: { mode: SystemMode }) => {
   // States
   const [isPasswordShown, setIsPasswordShown] = useState(false)
   const [errorState, setErrorState] = useState<ErrorType | null>(null)
+  const [isLoading, setIsLoading] = useState(false); // State untuk loading
+
 
   // Vars
   const darkImg = '/images/pages/auth-mask-dark.png'
+  // const lightImg = '/images/pages/auth-mask-light.png'
   const lightImg = '/images/pages/auth-mask-light.png'
   const darkIllustration = '/images/illustrations/auth/v2-login-dark.png'
   const lightIllustration = '/images/illustrations/auth/v2-login-light.png'
@@ -130,24 +135,24 @@ const Login = ({ mode }: { mode: SystemMode }) => {
   const handleClickShowPassword = () => setIsPasswordShown(show => !show)
 
   const onSubmit: SubmitHandler<FormData> = async (data: FormData) => {
+    setIsLoading(true); // Set loading true
     const res = await signIn('credentials', {
       email: data.email,
       password: data.password,
       redirect: false
-    })
+    });
 
     if (res && res.ok && res.error === null) {
-      // Vars
-      // const redirectURL = searchParams.get('redirectTo') ?? '/'
-      router.push('/home')
+      router.push('/home');
+      setIsLoading(false); // Set loading false
     } else {
+      setIsLoading(false); // Set loading false
       if (res?.error) {
-        const error = JSON.parse(res.error)
-
-        setErrorState(error)
+        const error = JSON.parse(res.error);
+        setErrorState(error);
       }
     }
-  }
+  };
 
   return (
     <div className='flex bs-full justify-center'>
@@ -168,8 +173,8 @@ const Login = ({ mode }: { mode: SystemMode }) => {
         </div>
         <div className='flex flex-col gap-6 is-full sm:is-auto md:is-full sm:max-is-[400px] md:max-is-[unset] mbs-8 sm:mbs-11 md:mbs-0'>
           <div className='flex flex-col gap-1'>
-            <Typography variant='h4'>{`Welcome to ${themeConfig.templateName}! 👋🏻`}</Typography>
-            <Typography>Please sign-in to your account and start the adventure</Typography>
+            <Typography variant='h4'>{`Selamat Datang Di ${themeConfig.templateName}! 👋🏻`}</Typography>
+            <Typography>Silakan masuk ke akun Anda dan mulai petualangannya</Typography>
           </div>
           <form
             noValidate
@@ -209,7 +214,7 @@ const Login = ({ mode }: { mode: SystemMode }) => {
                 <CustomTextField
                   {...field}
                   fullWidth
-                  label='Password'
+                  label='Kata Sandi'
                   placeholder='············'
                   id='login-password'
                   type={isPasswordShown ? 'text' : 'password'}
@@ -231,11 +236,20 @@ const Login = ({ mode }: { mode: SystemMode }) => {
               )}
             />
             <div className='flex justify-between items-center gap-x-3 gap-y-1 flex-wrap'>
-              <FormControlLabel control={<Checkbox defaultChecked />} label='Remember me' />
+              <FormControlLabel control={<Checkbox defaultChecked />} label='Ingat Saya' />
             </div>
-            <Button fullWidth variant='contained' type='submit'>
-              Login
-            </Button>
+            <Button fullWidth variant='contained' type='submit' disabled={isLoading}>
+              {isLoading ? (
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <CircularProgress size={24} style={{ color: 'white', marginRight: 8 }} />
+                  Masuk
+                </div>
+              ) : (
+                'Masuk'
+              )}
+              </Button>
+              {/* Show errors for email and password from errorState */}
+              {errorState && <Alert severity="error">{errorState.message}</Alert>}
           </form>
         </div>
       </div>
