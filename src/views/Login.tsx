@@ -4,7 +4,6 @@
 import { useState } from 'react'
 
 // Next Imports
-import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 
 // MUI Imports
@@ -16,10 +15,8 @@ import InputAdornment from '@mui/material/InputAdornment'
 import Checkbox from '@mui/material/Checkbox'
 import Button from '@mui/material/Button'
 import FormControlLabel from '@mui/material/FormControlLabel'
-import Divider from '@mui/material/Divider'
 import Alert from '@mui/material/Alert'
-import CircularProgress from '@mui/material/CircularProgress';
-
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Third-party Imports
 import { signIn } from 'next-auth/react'
@@ -32,7 +29,6 @@ import classnames from 'classnames'
 
 // Type Imports
 import type { SystemMode } from '@core/types'
-import type { Locale } from '@/configs/i18n'
 
 // Component Imports
 import Logo from '@components/layout/shared/Logo'
@@ -44,9 +40,6 @@ import themeConfig from '@configs/themeConfig'
 // Hook Imports
 import { useImageVariant } from '@core/hooks/useImageVariant'
 import { useSettings } from '@core/hooks/useSettings'
-
-// Util Imports
-import { getLocalizedUrl } from '@/utils/i18n'
 
 // Styled Custom Components
 const LoginIllustration = styled('img')(({ theme }) => ({
@@ -73,7 +66,7 @@ const MaskImg = styled('img')({
 })
 
 type ErrorType = {
-  message: string[]
+  message: string[] | string
 }
 
 type FormData = InferInput<typeof schema>
@@ -88,29 +81,30 @@ const schema = object({
 })
 
 const Login = ({ mode }: { mode: SystemMode }) => {
-  // States
   const [isPasswordShown, setIsPasswordShown] = useState(false)
   const [errorState, setErrorState] = useState<ErrorType | null>(null)
-  const [isLoading, setIsLoading] = useState(false); // State untuk loading
+  const [isLoading, setIsLoading] = useState(false)
 
+  const router = useRouter()
+  const { settings } = useSettings()
+  const theme = useTheme()
+  const hidden = useMediaQuery(theme.breakpoints.down('md'))
 
-  // Vars
   const darkImg = '/images/pages/auth-mask-dark.png'
-  // const lightImg = '/images/pages/auth-mask-light.png'
   const lightImg = '/images/pages/auth-mask-light.png'
   const darkIllustration = '/images/illustrations/auth/v2-login-dark.png'
   const lightIllustration = '/images/illustrations/auth/v2-login-light.png'
   const borderedDarkIllustration = '/images/illustrations/auth/v2-login-dark-border.png'
   const borderedLightIllustration = '/images/illustrations/auth/v2-login-light-border.png'
 
-  // Hooks
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { lang: locale } = useParams()
-  const { settings } = useSettings()
-  const theme = useTheme()
-  const hidden = useMediaQuery(theme.breakpoints.down('md'))
   const authBackground = useImageVariant(mode, lightImg, darkImg)
+  const characterIllustration = useImageVariant(
+    mode,
+    lightIllustration,
+    darkIllustration,
+    borderedLightIllustration,
+    borderedDarkIllustration
+  )
 
   const {
     control,
@@ -124,35 +118,33 @@ const Login = ({ mode }: { mode: SystemMode }) => {
     }
   })
 
-  const characterIllustration = useImageVariant(
-    mode,
-    lightIllustration,
-    darkIllustration,
-    borderedLightIllustration,
-    borderedDarkIllustration
-  )
-
   const handleClickShowPassword = () => setIsPasswordShown(show => !show)
 
-  const onSubmit: SubmitHandler<FormData> = async (data: FormData) => {
-    setIsLoading(true); // Set loading true
+  const onSubmit: SubmitHandler<FormData> = async data => {
+    setIsLoading(true)
+    setErrorState(null)
+
     const res = await signIn('credentials', {
       email: data.email,
       password: data.password,
       redirect: false
-    });
+    })
 
     if (res && res.ok && res.error === null) {
-      router.push('/home');
-      setIsLoading(false); // Set loading false
+      router.push('/home')
     } else {
-      setIsLoading(false); // Set loading false
       if (res?.error) {
-        const error = JSON.parse(res.error);
-        setErrorState(error);
+        try {
+          const parsed = JSON.parse(res.error)
+          setErrorState(parsed)
+        } catch {
+          setErrorState({ message: "Login Gagal Email & Password Salah!" })
+        }
       }
     }
-  };
+
+    setIsLoading(false)
+  }
 
   return (
     <div className='flex bs-full justify-center'>
@@ -179,14 +171,12 @@ const Login = ({ mode }: { mode: SystemMode }) => {
           <form
             noValidate
             autoComplete='off'
-            action={() => {}}
             onSubmit={handleSubmit(onSubmit)}
             className='flex flex-col gap-6'
           >
             <Controller
               name='email'
               control={control}
-              rules={{ required: true }}
               render={({ field }) => (
                 <CustomTextField
                   {...field}
@@ -201,7 +191,7 @@ const Login = ({ mode }: { mode: SystemMode }) => {
                   }}
                   {...((errors.email || errorState !== null) && {
                     error: true,
-                    helperText: errors?.email?.message || errorState?.message[0]
+                    helperText: errors?.email?.message || (typeof errorState?.message === 'string' ? errorState?.message : errorState?.message[0])
                   })}
                 />
               )}
@@ -209,7 +199,6 @@ const Login = ({ mode }: { mode: SystemMode }) => {
             <Controller
               name='password'
               control={control}
-              rules={{ required: true }}
               render={({ field }) => (
                 <CustomTextField
                   {...field}
@@ -247,9 +236,25 @@ const Login = ({ mode }: { mode: SystemMode }) => {
               ) : (
                 'Masuk'
               )}
-              </Button>
-              {/* Show errors for email and password from errorState */}
-              {errorState && <Alert severity="error">{errorState.message}</Alert>}
+            </Button>
+
+            {errorState && (
+              <Alert severity='error'>
+                {Array.isArray(errorState.message) ? (
+                  errorState.message.length > 1 ? (
+                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                      {errorState.message.map((msg, i) => (
+                        <li key={i}>{msg}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    errorState.message[0]
+                  )
+                ) : (
+                  errorState.message
+                )}
+              </Alert>
+            )}
           </form>
         </div>
       </div>

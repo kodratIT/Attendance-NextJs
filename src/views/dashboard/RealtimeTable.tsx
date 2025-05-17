@@ -186,7 +186,7 @@ const RealtimeTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
 
       
       // ✅ Reset trigger setelah data diambil
-      set(ref(database, "triggers/attendanceUpdate"), false);
+      // set(ref(database, "triggers/attendanceUpdate"), false);
       setData(res.data)
 
       setLoading(false);
@@ -195,30 +195,30 @@ const RealtimeTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
       setData([]);
     }
   };
-  const realTime = async () => {
-    try {
-      let fromDate = new Date();
+  // const realTime = async () => {
+  //   try {
+  //     let fromDate = new Date();
 
-      // Menyesuaikan zona waktu ke UTC+7
-      fromDate.setHours(fromDate.getHours() + 7);
+  //     // Menyesuaikan zona waktu ke UTC+7
+  //     fromDate.setHours(fromDate.getHours() + 7);
 
-      const formattedToDate = fromDate.getUTCFullYear() + '-' + 
-                              String(fromDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
-                              String(fromDate.getUTCDate()).padStart(2, '0');
+  //     const formattedToDate = fromDate.getUTCFullYear() + '-' + 
+  //                             String(fromDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+  //                             String(fromDate.getUTCDate()).padStart(2, '0');
                               
-      const res = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedToDate}&toDate=${formattedToDate}`
-      );
+  //     const res = await axios.get(
+  //       `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedToDate}&toDate=${formattedToDate}`
+  //     );
 
       
-      // ✅ Reset trigger setelah data diambil
-      set(ref(database, "triggers/attendanceUpdate"), false);
-      setData(res.data)
-    } catch (error) {
-      console.error("❌ Error fetching filtered data:", error);
-      setData([]);
-    }
-  };
+  //     // ✅ Reset trigger setelah data diambil
+  //     set(ref(database, "triggers/attendanceUpdate"), false);
+  //     setData(res.data)
+  //   } catch (error) {
+  //     console.error("❌ Error fetching filtered data:", error);
+  //     setData([]);
+  //   }
+  // };
 
 
   // const socket = io(`${process.env.NEXT_PUBLIC_API_URL}`);
@@ -246,7 +246,7 @@ const RealtimeTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
     onValue(triggerRef, (snapshot) => {
       if (snapshot.val() === true) {
         console.log("📢 Data berubah! Fetching new attendance data...");
-        realTime(); // Panggil ulang API untuk mendapatkan data terbaru
+        // realTime(); // Panggil ulang API untuk mendapatkan data terbaru
       }
     });
 

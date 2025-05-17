@@ -238,7 +238,7 @@ const Users = ({ usersData }: { usersData?: UserRowType[] }) => {
               elementProps={{
                 variant: 'contained',
                 startIcon: <i className="tabler-plus" />,
-                children: 'Add Permission',
+                children: 'Add Users',
               }}
               dialog={UserDialog}
               dialogProps={{
