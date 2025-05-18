@@ -4,6 +4,7 @@ export type AttendanceRowType = {
     name: string;
     shifts: string;
     areas: string;
+    areaId: string;
     avatar: string;
     checkIn: {
       time: string;

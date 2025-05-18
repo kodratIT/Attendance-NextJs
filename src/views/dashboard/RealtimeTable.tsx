@@ -6,6 +6,7 @@ import { useEffect, useState, useMemo } from 'react'
 // Next Imports
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { getSession } from 'next-auth/react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -170,24 +171,57 @@ const RealtimeTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      
+      const session = await getSession()
+      const role = session?.user?.role?.name
+      const userAreaIds: string[] = Array.isArray(session?.user?.areas) ? session.user.areas : []
 
-      let fromDate = new Date();
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL
+      if (!apiUrl) throw new Error('❌ NEXT_PUBLIC_API_URL not set')
 
-      // Menyesuaikan zona waktu ke UTC+7
-      fromDate.setHours(fromDate.getHours() + 7);
+      // Format tanggal WIB (today)
+      const now = new Date()
+      now.setHours(now.getHours() + 7)
+      const fromDate = now.toISOString().slice(0, 10)
 
-      const formattedToDate = fromDate.getUTCFullYear() + '-' + 
-                              String(fromDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
-                              String(fromDate.getUTCDate()).padStart(2, '0');
-                              
-      const res = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedToDate}&toDate=${formattedToDate}`
-      );
+      // Ambil data absensi
+      const attendanceRes = await axios.get(`${apiUrl}/api/attendance?fromDate=${fromDate}&toDate=${fromDate}`, {
+        headers: {
+          'Cache-Control': 'no-store',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+        timeout: 10000,
+      })
+      
+      let attendanceData: AttendanceRowType[] = attendanceRes.data || []
 
+      if (role === 'Admin') {
+        attendanceData = attendanceData.filter((row: AttendanceRowType) => {
+          return typeof row?.areaId === 'string' && userAreaIds.includes(row.areaId)
+        })
+      }
+
+  //       // Hitung present dan late
+  // let late = 0
+  // let present = 0
+
+  // attendanceData.forEach(item => {
+  //   if (item.status === 'present') {
+  //     present += 1
+  //   } else if (item.status === 'late') {
+  //     late += 1
+  //   }
+  // })
+
+// setCountLate(late)
+// setCountPresent(present)
+
+
+      setData(attendanceData)
       
       // ✅ Reset trigger setelah data diambil
-      // set(ref(database, "triggers/attendanceUpdate"), false);
-      setData(res.data)
+      set(ref(database, "triggers/attendanceUpdate"), false);
 
       setLoading(false);
     } catch (error) {
@@ -195,6 +229,8 @@ const RealtimeTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
       setData([]);
     }
   };
+
+  
   // const realTime = async () => {
   //   try {
   //     let fromDate = new Date();
@@ -240,19 +276,19 @@ const RealtimeTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   useEffect(() => {
     fetchData(); // 🔥 Ambil data pertama kali saat halaman dimuat
 
-    // 🔥 Dengarkan perubahan di Realtime Database
-    const triggerRef = ref(database, "triggers/attendanceUpdate");
+    // // 🔥 Dengarkan perubahan di Realtime Database
+    // const triggerRef = ref(database, "triggers/attendanceUpdate");
 
-    onValue(triggerRef, (snapshot) => {
-      if (snapshot.val() === true) {
-        console.log("📢 Data berubah! Fetching new attendance data...");
-        // realTime(); // Panggil ulang API untuk mendapatkan data terbaru
-      }
-    });
+    // onValue(triggerRef, (snapshot) => {
+    //   if (snapshot.val() === true) {
+    //     console.log("📢 Data berubah! Fetching new attendance data...");
+    //     realTime(); // Panggil ulang API untuk mendapatkan data terbaru
+    //   }
+    // });
 
-    return () => {
-      set(triggerRef, false); // Reset trigger saat komponen unmount
-    };
+    // return () => {
+    //   set(triggerRef, false); // Reset trigger saat komponen unmount
+    // };
   }, []);
 
   useEffect(() => {

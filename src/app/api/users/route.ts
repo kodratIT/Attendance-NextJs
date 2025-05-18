@@ -70,6 +70,7 @@ export async function GET() {
             ...rest,
             role: roleName,
             areas: areaNames,
+            areasId:areas,
             shifts: shiftNames,
             createdAt: timeSpentToDate(created_at),
             updatedAt: timeSpentToDate(updated_at),
@@ -77,6 +78,7 @@ export async function GET() {
       })
     );
 
+    // console.log(data)
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: createCORSHeaders(),

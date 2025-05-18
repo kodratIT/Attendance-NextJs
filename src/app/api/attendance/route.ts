@@ -295,14 +295,23 @@ export async function GET(req: Request) {
         }
 
 
-        let areaName = 'Unknown';
+        let areaName = 'Unknown'
+        let areaId = ''
+
         if (Array.isArray(areas) && areas.every(area => area instanceof DocumentReference)) {
-          const areaDocs = await Promise.all(areas.map(area => getDoc(area)));
-          const areaNames = areaDocs
-            .filter(areaSnap => areaSnap.exists())
-            .map(areaSnap => (areaSnap.data() as { name?: string })?.name ?? 'Unknown');
-          areaName = areaNames.length ? areaNames.join(', ') : 'Unknown';
+        const areaDocs = await Promise.all(areas.map(area => getDoc(area)))
+
+        const validAreaData = areaDocs
+          .filter(areaSnap => areaSnap.exists())
+          .map(areaSnap => ({
+            id: areaSnap.id,
+            name: (areaSnap.data() as { name?: string }).name ?? 'Unknown'
+          }))
+
+        areaName = validAreaData.map(area => area.name).join(', ') || 'Unknown'
+        areaId = validAreaData.map(area => area.id).join(', ') || ''
         }
+
         const attendanceRaw = dayDocSnap.data();
 
         return {
@@ -311,6 +320,7 @@ export async function GET(req: Request) {
           name: userName,
           date: date,
           areas: areaName,
+          areaId: areaId, 
           shifts: shiftName,
           avatar: avatar,
           checkIn: attendanceRaw?.checkIn || {

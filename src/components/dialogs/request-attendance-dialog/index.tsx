@@ -15,6 +15,8 @@ import InputLabel from '@mui/material/InputLabel';
 import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 import { AttendanceRowType } from '@/types/attendanceRowTypes';
+import { getSession } from 'next-auth/react'
+
 
 interface UserType {
   id: number;
@@ -45,26 +47,73 @@ const RequestDialog = ({ open, setOpen, currentUser, state, data, refreshData = 
     keterangan: '',
   });
 
-  // Fetch all users on open
-  useEffect(() => {
-    if (!open) return;
+  // // Fetch all users on open
+  // useEffect(() => {
+  //   if (!open) return;
 
-    const fetchUsers = async () => {
-      setLoading(true);
-      try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-        const response = await axios.get<UserType[]>(`${API_URL}/api/users`);
-        setUsers(response.data);
-      } catch (error) {
-        console.error('Failed to fetch users:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  //   const fetchUsers = async () => {
+  //     setLoading(true);
+  //     try {
+  //       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  //       const response = await axios.get<UserType[]>(`${API_URL}/api/users`);
+  //       setUsers(response.data);
+  //     } catch (error) {
+  //       console.error('Failed to fetch users:', error);
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
 
-    fetchUsers();
+  //   fetchUsers();
 
-  }, [open]);
+  // }, [open]);
+
+
+
+useEffect(() => {
+  if (!open) return;
+
+  const fetchUsers = async () => {
+    setLoading(true);
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+      const session = await getSession()
+      const response = await axios.get<UserType[]>(`${API_URL}/api/users`)
+      const allUsers = response.data || []
+
+      // console.log("ndksnfkjdbkjfdbkjdf kjfdfd ")
+      
+      const sessionAreaIds: string[] = Array.isArray(session?.user?.areas) ? session.user.areas : []
+
+      const filteredUsers = allUsers.filter((user: any) => {
+        const userAreas: string[] = Array.isArray(user.areas)
+          ? user.areas.map((ref: any) => {
+              if (ref?.id) return ref.id     // Ambil ID dari Firestore DocumentReference
+              if (typeof ref === 'string') return ref.split('/').pop() // fallback jika string path
+              return ''
+            })
+          : []
+
+        return userAreas.some(areaId => sessionAreaIds.includes(areaId))
+      })
+
+      setUsers(filteredUsers)
+    } catch (error) {
+      console.error('Failed to fetch users:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  fetchUsers()
+
+
+  console.log(users);
+
+  
+}, [open])
+
 
   const handleUserChange = (event: any) => {
     const userId = event.target.value;

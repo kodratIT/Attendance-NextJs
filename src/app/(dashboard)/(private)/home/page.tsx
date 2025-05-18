@@ -1,66 +1,116 @@
-// Importasi Komponen
-import { Suspense } from 'react';
-import type { AttendanceRowType } from '@/types/attendanceRowTypes';
-import AttendanceHistory from '@views/dashboard/RealtimeTable';
-import CircularProgress from '@mui/material/CircularProgress';
-import axios from 'axios';
+'use client'
 
-import Grid from '@mui/material/Grid';
-import CardStatVertical from '@/components/card-statistics/Vertical';
+import { useEffect, useState } from 'react'
+import { getSession } from 'next-auth/react'
+import type { AttendanceRowType } from '@/types/attendanceRowTypes'
+import AttendanceHistory from '@views/dashboard/RealtimeTable'
+import CircularProgress from '@mui/material/CircularProgress'
+import axios from 'axios'
 
-// Fungsi untuk mengambil data absensi
-const getAttendanceData = async (): Promise<AttendanceRowType[]> => {
-  try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (!apiUrl) {
-      throw new Error("❌ URL API PUBLIK tidak ditemukan dalam variabel lingkungan!");
-    }
+import Grid from '@mui/material/Grid'
+import CardStatVertical from '@/components/card-statistics/Vertical'
 
-    let fromDate = new Date();
-    fromDate.setHours(fromDate.getHours() + 7); // Sesuaikan ke Waktu Indonesia Bagian Barat
-    
-    let formattedFromDate = fromDate.getUTCFullYear() + '-' + 
-                            String(fromDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
-                            String(fromDate.getUTCDate()).padStart(2, '0');
-
-    const res = await axios.get(`${apiUrl}/api/attendance?fromDate=${formattedFromDate}&toDate=${formattedFromDate}`, {
-      headers: {
-        'Cache-Control': 'no-store',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      },
-      timeout: 10000, // Batas waktu untuk kasus server lambat
-    });
-
-    console.log("✅ Data Respon API:", res.data);
-    return res.data;
-  } catch (error: any) {
-    console.error('❌ Error fetch dari server:', error.message || error);
-    return []; // Kembali ke data kosong sebagai fallback
-  }
-};
-
-// Komponen untuk Menampilkan Loading
 const Loading = () => (
   <div className="flex justify-center items-center min-h-[200px]">
     <CircularProgress />
   </div>
-);
+)
 
-// Komponen Utama Dashboard dengan Fetch Data Asinkron
-const Dashboard = async () => {
-  const data = await getAttendanceData();
+const AttendancePage = () => {
+  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<AttendanceRowType[]>([])
+  const [employeeCount, setEmployeeCount] = useState<number>(0)
+  const [sessionUser, setSessionUser] = useState<any>(null)
+  const [countLate, setCountLate] = useState(0)
+  const [countPresent, setCountPresent] = useState(0)
 
-  console.log("Data dari API:", data);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const session = await getSession()
+        const role = session?.user?.role?.name
+        const userAreaIds: string[] = Array.isArray(session?.user?.areas) ? session.user.areas : []
+
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL
+        if (!apiUrl) throw new Error('❌ NEXT_PUBLIC_API_URL not set')
+
+        // Format tanggal WIB (today)
+        const now = new Date()
+        now.setHours(now.getHours() + 7)
+        const fromDate = now.toISOString().slice(0, 10)
+
+        // Ambil data absensi
+        const attendanceRes = await axios.get(`${apiUrl}/api/attendance?fromDate=${fromDate}&toDate=${fromDate}`, {
+          headers: {
+            'Cache-Control': 'no-store',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+          timeout: 10000,
+        })
+
+        let attendanceData: AttendanceRowType[] = attendanceRes.data || []
+
+        if (role === 'Admin') {
+          attendanceData = attendanceData.filter((row: AttendanceRowType) => {
+            return typeof row?.areaId === 'string' && userAreaIds.includes(row.areaId)
+          })
+        }
+
+        // Hitung present dan late
+        let late = 0
+        let present = 0
+
+        attendanceData.forEach(item => {
+          if (item.status === 'present') {
+            present += 1
+          } else if (item.status === 'late') {
+            late += 1
+          }
+        })
+
+        setCountLate(late)
+        setCountPresent(present)
+
+        setData(attendanceData)
+
+        setSessionUser(session?.user || null) 
+
+        // Ambil data user
+        const usersRes = await axios.get(`${apiUrl}/api/users`)
+        let users = usersRes.data || []
+
+        if (role === 'Admin') {
+          users = users.filter((user: any) =>
+            Array.isArray(user.areas) &&
+            user.areas.some((area: any) => userAreaIds.includes(area.id))
+          )
+        }
+
+        setEmployeeCount(users.length)
+      } catch (error: any) {
+        console.error('❌ Error:', error.message || error)
+        setData([])
+        setEmployeeCount(0)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  if (loading) return <Loading />
 
   return (
     <Grid container spacing={6}>
-      {/* Kartu Summary untuk Detail Absensi */}
+      {/* Total Karyawan */}
       <Grid item xs={12} sm={3} md={3} lg={3}>
         <CardStatVertical
           title='Jumlah Karyawan'
           subtitle='Total dalam database'
-          stats={`${data.length}`}
+          stats={`${employeeCount}`}
           avatarColor='info'
           avatarIcon='tabler-users'
           avatarSkin='light'
@@ -70,11 +120,13 @@ const Dashboard = async () => {
           chipColor='success'
         />
       </Grid>
+
+      {/* Telat */}
       <Grid item xs={12} sm={3} md={3} lg={3}>
         <CardStatVertical
           title='Telat'
           subtitle='Kedatangan tidak tepat waktu'
-          stats={`${data.filter(emp => emp.status === 'late').length}`}
+          stats={`${countLate}`}
           avatarColor='warning'
           avatarIcon='tabler-clock'
           avatarSkin='light'
@@ -84,11 +136,13 @@ const Dashboard = async () => {
           chipColor='warning'
         />
       </Grid>
+
+      {/* Tepat Waktu */}
       <Grid item xs={12} sm={3} md={3} lg={3}>
         <CardStatVertical
           title='Tepat Waktu'
           subtitle='Kedatangan tepat waktu'
-          stats={`${data.filter(emp => emp.status === 'on-time').length}`}
+          stats={`${countPresent}`}
           avatarColor='success'
           avatarIcon='tabler-check'
           avatarSkin='light'
@@ -98,6 +152,8 @@ const Dashboard = async () => {
           chipColor='success'
         />
       </Grid>
+
+      {/* Tidak Hadir */}
       <Grid item xs={12} sm={3} md={3} lg={3}>
         <CardStatVertical
           title='Tidak Hadir'
@@ -114,20 +170,11 @@ const Dashboard = async () => {
       </Grid>
 
       {/* Tabel Absensi */}
-      <Grid item xs={12} lg={12}>
+      <Grid item xs={12}>
         <AttendanceHistory tableData={data} />
       </Grid>
     </Grid>
-  );
-};
+  )
+}
 
-// Komponen Halaman dengan Suspense (Tanpa useEffect atau useState)
-const AttendancePage = () => {
-  return (
-    <Suspense fallback={<Loading />}>
-      <Dashboard />
-    </Suspense>
-  );
-};
-
-export default AttendancePage;
+export default AttendancePage
