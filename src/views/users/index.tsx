@@ -44,6 +44,8 @@ import OpenDialogOnElementClick from '@components/dialogs/OpenDialogOnElementCli
 import type { ThemeColor } from '@core/types'
 import tableStyles from '@core/styles/table.module.css'
 import UserDialog from '@/components/dialogs/user-dialog'
+import { getSession } from 'next-auth/react'
+
 
 type Colors = {
   [key: string]: ThemeColor
@@ -66,25 +68,41 @@ const Users = ({ usersData }: { usersData?: UserRowType[] }) => {
   const [globalFilter, setGlobalFilter] = useState('')
   const [loading, setLoading] = useState(false) // Loading state untuk fetch data
 
-  const fetchData = async () => {
+const fetchData = async () => {
+  setLoading(true)
 
-    setLoading(true);
-    try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/users`, {
-        headers: {
-          'Cache-Control': 'no-store' // Hindari caching agar selalu mendapatkan data terbaru
-        }
-      });
-      
-      console.log(res)
-      setData(res.data);
-    } catch (error) {
-      console.error(error);
-      alert('Error fetching data.');
-    } finally {
-      setLoading(false);
-    }
+  try {
+    const session = await getSession()
+    const sessionAreaIds: string[] = Array.isArray(session?.user?.areas) ? session.user.areas : []
+
+    const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/users`, {
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    })
+
+    const allUsers = res.data || []
+
+    const filteredUsers = allUsers.filter((user: any) => {
+      const userAreas: string[] = Array.isArray(user.areas)
+        ? user.areas.map((ref: any) => {
+            if (ref?.id) return ref.id                // Firestore DocumentReference
+            if (typeof ref === 'string') return ref.split('/').pop() // Fallback string path
+            return ''
+          })
+        : []
+
+      return userAreas.some(areaId => sessionAreaIds.includes(areaId))
+    })
+
+    setData(filteredUsers)
+  } catch (error) {
+    console.error('❌ Error fetching user data:', error)
+    alert('Error fetching data.')
+  } finally {
+    setLoading(false)
   }
+}
 
   // // Ambil data saat komponen pertama kali di-mount
   // useEffect(() => {
