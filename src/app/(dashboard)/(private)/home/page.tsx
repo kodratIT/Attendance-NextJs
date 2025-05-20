@@ -52,6 +52,8 @@ const AttendancePage = () => {
 
         let attendanceData: AttendanceRowType[] = attendanceRes.data || []
 
+
+
         if (role === 'Admin') {
           attendanceData = attendanceData.filter((row: AttendanceRowType) => {
             return typeof row?.areaId === 'string' && userAreaIds.includes(row.areaId)

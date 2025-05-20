@@ -44,6 +44,7 @@ import type { ThemeColor } from '@core/types'
 import type { AttendanceRowType } from '@/types/attendanceRowTypes'
 import type { Locale } from '@configs/i18n'
 
+import { getSession } from 'next-auth/react'
 // Component Imports
 import TableFilters from './TableFilters'
 import OptionMenu from '@core/components/option-menu'
@@ -196,33 +197,113 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
 
 
   const fetchData = async () => {
-    try {
-      setLoading(true);
+  try {
+    setLoading(true)
 
-      let fromDate = new Date();
-
-      // Menyesuaikan zona waktu ke UTC+7
-      fromDate.setHours(fromDate.getHours() + 7);
-
-      const formattedToDate = fromDate.getUTCFullYear() + '-' + 
-                              String(fromDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
-                              String(fromDate.getUTCDate()).padStart(2, '0');
-                              
-      const res = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedToDate}&toDate=${formattedToDate}`
-      );
-
-      
-      // ✅ Reset trigger setelah data diambil
-      set(ref(database, "triggers/attendanceUpdate"), false);
-      setData(res.data)
-
-      setLoading(false);
-    } catch (error) {
-      console.error("❌ Error fetching filtered data:", error);
-      setData([]);
+    // Ambil session user
+    const session = await getSession()
+    if (!session) {
+      console.warn('⚠️ Tidak ada session aktif')
+      setLoading(false)
+      setData([])
+      return
     }
-  };
+
+    const role = session.user?.role?.name
+    const userAreaIds: string[] = Array.isArray(session.user?.areas)
+      ? session.user.areas
+      : []
+
+    // Format tanggal hari ini (WIB/GMT+7)
+    const now = new Date()
+    now.setHours(now.getHours() + 7)
+
+    const formattedDate = now.getUTCFullYear() + '-' +
+                          String(now.getUTCMonth() + 1).padStart(2, '0') + '-' +
+                          String(now.getUTCDate()).padStart(2, '0')
+
+    const res = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedDate}&toDate=${formattedDate}`,
+      {
+        headers: {
+          'Cache-Control': 'no-store',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+        timeout: 10000,
+      }
+    )
+
+
+    let attendanceData: AttendanceRowType[] = res.data || []
+
+    // 🔍 Filter data jika role Admin → hanya area tertentu
+if (role?.toLowerCase() === 'admin') {
+  // Ambil ID dari semua DocumentReference di session
+  const adminAreaIds = userAreaIds
+    .map((ref: any) => {
+      if (typeof ref === 'object' && ref?.id) return ref.id
+      if (typeof ref === 'string') return ref.split('/').pop()
+      return null
+    })
+    .filter(Boolean)
+
+  console.log('✅ Admin Area IDs:', adminAreaIds)
+
+  attendanceData = attendanceData.filter((row: any, index: number) => {
+    const areaField = row.areaId
+
+    console.log(`🔍 [${index}] Memeriksa row.areaId:`, areaField)
+
+    // 🎯 Jika satu DocumentReference
+    if (typeof areaField === 'object' && areaField?.id) {
+      const match = adminAreaIds.includes(areaField.id)
+      console.log(`➡️ DocRef tunggal cocok? ${match} | ID: ${areaField.id}`)
+      return match
+    }
+
+    // 🎯 Jika string (path atau ID)
+    if (typeof areaField === 'string') {
+      const id = areaField.split('/').pop()
+      const match = adminAreaIds.includes(id!)
+      console.log(`➡️ String cocok? ${match} | ID: ${id}`)
+      return match
+    }
+
+    // 🎯 Jika array of string/ref
+    if (Array.isArray(areaField)) {
+      const match = areaField.some((entry: any) => {
+        if (typeof entry === 'object' && entry?.id) {
+          return adminAreaIds.includes(entry.id)
+        }
+        if (typeof entry === 'string') {
+          const id = entry.split('/').pop()
+          return adminAreaIds.includes(id!)
+        }
+        return false
+      })
+      console.log(`➡️ Array cocok? ${match} | Nilai:`, areaField)
+      return match
+    }
+
+    // ❌ Tidak cocok
+    console.log(`❌ Tidak dikenali format areaId`, areaField)
+    return false
+  })
+}
+
+    // Set data
+    setData(attendanceData)
+  } catch (error: any) {
+    console.error('❌ Error fetching filtered data:', error.message || error)
+    setData([])
+  } finally {
+    setLoading(false)
+  }
+}
+
+
+
   const realTime = async () => {
     try {
       let fromDate = new Date();
@@ -266,27 +347,27 @@ const UserListTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
 // }, []);
 
 
-  useEffect(() => {
-    fetchData(); // 🔥 Ambil data pertama kali saat halaman dimuat
+  // useEffect(() => {
+  //   fetchData(); // 🔥 Ambil data pertama kali saat halaman dimuat
 
-    // 🔥 Dengarkan perubahan di Realtime Database
-    const triggerRef = ref(database, "triggers/attendanceUpdate");
+  //   // 🔥 Dengarkan perubahan di Realtime Database
+  //   const triggerRef = ref(database, "triggers/attendanceUpdate");
 
-    onValue(triggerRef, (snapshot) => {
-      if (snapshot.val() === true) {
-        console.log("📢 Data berubah! Fetching new attendance data...");
-        realTime(); // Panggil ulang API untuk mendapatkan data terbaru
-      }
-    });
+  //   onValue(triggerRef, (snapshot) => {
+  //     if (snapshot.val() === true) {
+  //       console.log("📢 Data berubah! Fetching new attendance data...");
+  //       realTime(); // Panggil ulang API untuk mendapatkan data terbaru
+  //     }
+  //   });
 
-    return () => {
-      set(triggerRef, false); // Reset trigger saat komponen unmount
-    };
-  }, []);
+  //   return () => {
+  //     set(triggerRef, false); // Reset trigger saat komponen unmount
+  //   };
+  // }, []);
 
-  useEffect(() => {
-    setFilteredData(data);
-  }, [data]);
+  // useEffect(() => {
+  //   setFilteredData(data);
+  // }, [data]);
   
   // Hooks
   const { lang: locale } = useParams()

@@ -132,7 +132,7 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
           </MenuSection>
         )}
 
-        {(isSuperAdmin || isAdmin) && (
+        {(isSuperAdmin) && (
           <MenuSection label='Reports & Analysis'>
             <MenuItem href='/report' icon={<i className='tabler-report' />}>
               Laporan
@@ -140,7 +140,7 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
           </MenuSection>
         )}
 
-        {(isSuperAdmin || isAdmin) && (
+        {(isSuperAdmin) && (
           <MenuSection label='Access Control'>
             {isSuperAdmin && (
               <SubMenu label='Roles & Permissions' icon={<i className='tabler-lock' />}>
