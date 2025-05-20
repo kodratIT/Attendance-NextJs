@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { firestore,database } from '@/libs/firebase/firebase';
 import { collection, getDocs, getDoc,addDoc,setDoc, deleteDoc, doc, updateDoc, Timestamp,DocumentReference } from 'firebase/firestore';
-import { formatTime, timeSpentToDate } from '@/utils/dateUtils';
+import { timeSpentToDate } from '@/utils/dateUtils';
 import { createCORSHeaders } from '@/utils/cors';
 import { AreaType } from '@/types/areaTypes';
 import { ShiftType } from '@/types/shiftTypes';
@@ -24,6 +24,7 @@ interface AttendancePayload {
   workingHours: number;
   status: string;
 }
+
 
 // ✅ **OPTIONS Handler untuk Preflight Request**
 export async function OPTIONS() {
@@ -371,93 +372,91 @@ export async function GET(req: Request) {
   }
 }
 
+function formatTime(date: Date): string {
+  // Format waktu menjadi HH:mm:ss
+  return date.toTimeString().split(' ')[0];
+}
+
+function convertTimeDotToColon(time: string): string {
+  // Ubah format waktu '07.54.00' menjadi '07:54:00'
+  const parts = time.split('.');
+  if (parts.length !== 3) return time; // fallback kalau format tidak sesuai
+  return parts.join(':');
+}
+
 export async function POST(req: NextRequest) {
   try {
-    // const { userId, requestedBy, keterangan } = await req.json();
     const { userId, keterangan } = await req.json();
+
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ success: false, message: 'Invalid userId' }, { status: 400 });
     }
 
     console.log(`📝 Recording attendance for user: ${userId}`);
-    
-    // Ambil data user dari Firestore
+
+    // 🔍 Ambil data user
     const userRef = doc(firestore, 'users', userId);
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
       return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
     }
     const userData = userSnap.data();
-  
+
+    // 🧭 Ambil area
     if (!Array.isArray(userData.areas) || userData.areas.length === 0) {
-      return NextResponse.json({ success: false, message: 'Shift data is missing or invalid' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'Area data is missing or invalid' }, { status: 400 });
     }
-
-    // Ambil semua shift data dari Firestore
-    const areaSnaps = await Promise.all(userData.areas.map(areaRef => getDoc(areaRef)));
+    const areaSnaps = await Promise.all(userData.areas.map((areaRef: any) => getDoc(areaRef)));
     const validArea = areaSnaps.filter(areaSnap => areaSnap.exists()).map(areaSnap => areaSnap.data() as AreaType);
-
     if (validArea.length === 0) {
       return NextResponse.json({ success: false, message: 'No valid area found' }, { status: 404 });
     }
-
     const selectedArea = validArea[0];
 
-    // Ambil data shift dari referensi user
+    // 🕓 Ambil shift
     if (!Array.isArray(userData.shifts) || userData.shifts.length === 0) {
       return NextResponse.json({ success: false, message: 'Shift data is missing or invalid' }, { status: 400 });
     }
-
-    // Ambil semua shift data dari Firestore
-    const shiftSnaps = await Promise.all(userData.shifts.map(shiftRef => getDoc(shiftRef)));
+    const shiftSnaps = await Promise.all(userData.shifts.map((shiftRef: any) => getDoc(shiftRef)));
     const validShifts = shiftSnaps.filter(shiftSnap => shiftSnap.exists()).map(shiftSnap => shiftSnap.data() as ShiftType);
     if (validShifts.length === 0) {
       return NextResponse.json({ success: false, message: 'No valid shifts found' }, { status: 404 });
     }
-    
-    console.log("✅ Retrieved Shifts:", validShifts);
 
-    // Pilih shift yang paling sesuai berdasarkan waktu
-    const date = dayjs().format('YYYY-MM-DD');
-    // const now = dayjs();
-    // const selectedShift = validShifts.find(shift => now.isBefore(dayjs(`${date} ${shift.end_time}`))) || validShifts[0];
-
+    // 🕰 Waktu sekarang (GMT+7)
     const now = new Date();
-    const localOffset = now.getTimezoneOffset() * 60000; // Mendapatkan offset waktu lokal dalam milidetik
-    const gmt7Offset = 7 * 3600000; // Offset GMT+7 dalam milidetik
-    const nowInGMT7 = new Date(now.getTime() + localOffset + gmt7Offset); // Mengatur waktu saat ini ke GMT+7
-    
-    // Menemukan shift yang sesuai
+    const localOffset = now.getTimezoneOffset() * 60000;
+    const gmt7Offset = 7 * 60 * 60 * 1000;
+    const nowInGMT7 = new Date(now.getTime() + localOffset + gmt7Offset);
+    const today = nowInGMT7.toISOString().split('T')[0];
+
+    // 🔍 Temukan shift aktif berdasarkan waktu sekarang
     const selectedShift = validShifts.find(shift => {
-        const today = nowInGMT7.toISOString().split('T')[0]; // Mengambil hanya bagian tanggal YYYY-MM-DD
-        const shiftEndTimeStr = `${today}T${shift.end_time}:00+07:00`;
-        const shiftEndTime = new Date(shiftEndTimeStr);
-    
-        // Handle kasus dimana shift berakhir keesokan harinya
-        if (shift.end_time < shift.start_time) {
-            shiftEndTime.setDate(shiftEndTime.getDate() + 1);
-        }
-    
-        return nowInGMT7 < shiftEndTime;
-    }) || validShifts[0];  // Jika tidak ada yang cocok, default ke shift pertama
-    
-    // Hitung keterlambatan
-    const shiftStartTimeStr = `${nowInGMT7.toISOString().split('T')[0]}T${selectedShift.start_time}:00+07:00`;
+      const formattedEndTime = convertTimeDotToColon(shift.end_time);
+      const shiftEndTimeStr = `${today}T${formattedEndTime}+07:00`;
+      const shiftEndTime = new Date(shiftEndTimeStr);
+
+      if (shift.end_time < shift.start_time) {
+        shiftEndTime.setDate(shiftEndTime.getDate() + 1);
+      }
+
+      return nowInGMT7 < shiftEndTime;
+    }) || validShifts[0];
+
+    // ⏱ Hitung keterlambatan
+    const formattedStartTime = convertTimeDotToColon(selectedShift.start_time);
+    const shiftStartTimeStr = `${today}T${formattedStartTime}+07:00`;
     const shiftStartTime = new Date(shiftStartTimeStr);
     const lateBy = Math.max(0, (nowInGMT7.getTime() - shiftStartTime.getTime()) / 1000);
-      // // Hitung keterlambatan
-    // const lateBy = Math.max(0, nowInGMT7.diff(shiftStartTime, 'second'));
-
-  
-    // const shiftStartTime = dayjs(`${date} ${selectedShift.start_time}`);
-    
     const status = lateBy > 0 ? 'Late' : 'On Time';
-    
-    const timestamp = Timestamp.now();
-    const dateGMT7 = timestamp.toDate(); // Konversi ke JavaScript Date object
-    const localDate = new Date(dateGMT7.getTime() + (7 * 60 * 60 * 1000)); // Tambahkan 7 jam
 
-    // // Simpan data ke Firestore
+    // 📅 Tanggal & waktu
+    const timestamp = Timestamp.now();
+    const dateGMT7 = timestamp.toDate();
+    const localDate = new Date(dateGMT7.getTime() + gmt7Offset);
+    const date = today;
+
+    // 🔥 Simpan data ke Firestore
     const attendanceRef = doc(collection(firestore, `attendance/${userId}/day`), date);
     const attendanceData = {
       attendanceId: date,
@@ -465,7 +464,7 @@ export async function POST(req: NextRequest) {
       name: userData.name,
       date,
       areas: selectedArea.name,
-      shifts: selectedShift.name, // Simpan semua shift
+      shifts: selectedShift.name,
       avatar: userData.avatar || '',
       checkIn: {
         time: formatTime(nowInGMT7),
@@ -483,38 +482,41 @@ export async function POST(req: NextRequest) {
       lateBy,
       status,
       workingHours: 0,
-      // requestedBy,
       keterangan
     };
-    
+
     await setDoc(attendanceRef, attendanceData);
     console.log(`✅ Attendance recorded successfully for user ${userId}`);
 
     return NextResponse.json({ success: true, message: 'Attendance recorded successfully', data: attendanceData }, { status: 201 });
+
   } catch (error: any) {
     console.error('❌ Error recording attendance:', error);
     return NextResponse.json({ success: false, message: 'Failed to record attendance', error: error.message }, { status: 500 });
   }
 }
 
-
 export async function PUT(req: NextRequest) {
   try {
-    const  {data} = await req.json();
-    console.log(`🔄 Updating attendance for user: ${data}`);
-    const userId = data.userId;
+    const { data } = await req.json();
+    console.log(`🔄 Updating attendance for user: ${JSON.stringify(data)}`);
 
-    
-    // Ambil data kehadiran pengguna berdasarkan tanggal
+    const userId = data.userId;
     const date = data.attendanceId;
+
+    if (!userId || !date) {
+      return NextResponse.json({ success: false, message: 'Missing userId or attendanceId' }, { status: 400 });
+    }
+
+    // 🔍 Ambil data kehadiran berdasarkan userId dan tanggal
     const attendanceRef = doc(collection(firestore, `attendance/${userId}/day`), date);
     const attendanceSnap = await getDoc(attendanceRef);
     if (!attendanceSnap.exists()) {
       return NextResponse.json({ success: false, message: 'Attendance record not found' }, { status: 404 });
     }
     const attendanceData = attendanceSnap.data();
-    
-    // Ambil data shift pengguna dari Firestore
+
+    // 🔍 Ambil data user
     const userRef = doc(firestore, 'users', userId);
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
@@ -526,46 +528,59 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Shift data is missing or invalid' }, { status: 400 });
     }
 
-    // Ambil semua shift data dari Firestore
-    const shiftSnaps = await Promise.all(userData.shifts.map(shiftRef => getDoc(shiftRef)));
-    const validShifts = shiftSnaps.filter(shiftSnap => shiftSnap.exists()).map(shiftSnap => shiftSnap.data() as ShiftType );
-    
+    // ✅ Ambil semua shift yang valid
+    const shiftSnaps = await Promise.all(userData.shifts.map((shiftRef: any) => getDoc(shiftRef)));
+    const validShifts = shiftSnaps.filter(shiftSnap => shiftSnap.exists()).map(shiftSnap => shiftSnap.data() as ShiftType);
+
     if (validShifts.length === 0) {
       return NextResponse.json({ success: false, message: 'No valid shifts found' }, { status: 404 });
     }
 
+    // 🕒 Hitung waktu sekarang dalam GMT+7
     const now = new Date();
-    const localOffset = now.getTimezoneOffset() * 60000; // Mendapatkan offset waktu lokal dalam milidetik
-    const gmt7Offset = 7 * 3600000; // Offset GMT+7 dalam milidetik
-    const nowInGMT7 = new Date(now.getTime() + localOffset + gmt7Offset); // Mengatur waktu saat ini ke GMT+7
+    const localOffset = now.getTimezoneOffset() * 60000;
+    const gmt7Offset = 7 * 60 * 60 * 1000;
+    const nowInGMT7 = new Date(now.getTime() + localOffset + gmt7Offset);
+    const today = nowInGMT7.toISOString().split('T')[0];
 
-    // Menemukan shift yang sesuai
+    // 🔍 Temukan shift yang masih aktif berdasarkan waktu sekarang
     const selectedShift = validShifts.find(shift => {
-        const today = nowInGMT7.toISOString().split('T')[0]; // Mengambil hanya bagian tanggal YYYY-MM-DD
-        const shiftEndTimeStr = `${today}T${shift.end_time}:00+07:00`;
-        const shiftEndTime = new Date(shiftEndTimeStr);
+      const formattedEndTime = convertTimeDotToColon(shift.end_time);
+      const shiftEndTimeStr = `${today}T${formattedEndTime}+07:00`;
+      const shiftEndTime = new Date(shiftEndTimeStr);
 
-        // Handle kasus dimana shift berakhir keesokan harinya
-        if (shift.end_time < shift.start_time) {
-            shiftEndTime.setDate(shiftEndTime.getDate() + 1);
-        }
+      if (shift.end_time < shift.start_time) {
+        shiftEndTime.setDate(shiftEndTime.getDate() + 1);
+      }
 
-        return nowInGMT7 < shiftEndTime;
-    }) || validShifts[0];  // Jika tidak ada yang cocok, default ke shift pertama
+      return nowInGMT7 < shiftEndTime;
+    }) || validShifts[0];
 
-    
-    // // Pilih shift yang sesuai berdasarkan waktu
-    // const now = dayjs();
-    // const selectedShift = validShifts.find(shift => now.isBefore(dayjs(`${date} ${shift.end_time}`))) || validShifts[0];
-    
-    const shiftEndTime = dayjs(`${date} ${selectedShift.end_time}`);
-    const earlyLeaveBy = Math.max(0, shiftEndTime.diff(nowInGMT7, 'second'));
-    
+    // ⏱ Hitung early leave (jika keluar sebelum shift berakhir)
+    const formattedEndTime = convertTimeDotToColon(selectedShift.end_time);
+    const shiftEnd = dayjs(`${date} ${formattedEndTime}`);
+    const earlyLeaveBy = Math.max(0, shiftEnd.diff(nowInGMT7, 'second'));
+
     const timestamp = Timestamp.now();
-    const dateGMT7 = timestamp.toDate(); // Konversi ke JavaScript Date object
-    const localDate = new Date(dateGMT7.getTime() + (7 * 60 * 60 * 1000)); // Tambahkan 7 jam
+    const dateGMT7 = timestamp.toDate();
+    const localDate = new Date(dateGMT7.getTime() + gmt7Offset);
 
-    // Update data checkout
+    // 🔄 Update attendance data
+    const fullCheckInStr = `${date}T${attendanceData.checkIn.time}+07:00`;
+    const fullCheckOutStr = `${date}T${formatTime(nowInGMT7)}+07:00`;
+
+    let checkInDate = new Date(fullCheckInStr);
+    let checkOutDate = new Date(fullCheckOutStr);
+
+    // Jika check-out lebih awal dari check-in (lewat tengah malam), tambahkan 1 hari
+    if (checkOutDate < checkInDate) {
+      checkOutDate.setDate(checkOutDate.getDate() + 1);
+    }
+
+    // Hitung jam kerja dalam detik
+    const workingSeconds = Math.max(0, (checkOutDate.getTime() - checkInDate.getTime()) / 1000);
+
+    // 🔄 Update attendance data
     const updatedAttendanceData = {
       ...attendanceData,
       checkOut: {
@@ -574,17 +589,28 @@ export async function PUT(req: NextRequest) {
         location: { latitude: 0, longitude: 0, name: 'Unknown' }
       },
       earlyLeaveBy,
-      verifyOwner: false,
+      workingHours: workingSeconds, // kamu bisa ubah ke jam: workingSeconds / 3600
+      verifyOwner: true,
       updatedAt: localDate,
     };
+
 
     await setDoc(attendanceRef, updatedAttendanceData);
     console.log(`✅ Attendance updated successfully for user ${userId}`);
 
-    return NextResponse.json({ success: true, message: 'Attendance updated successfully', data: updatedAttendanceData }, { status: 200 });
+    return NextResponse.json({
+      success: true,
+      message: 'Attendance updated successfully',
+      data: updatedAttendanceData
+    }, { status: 200 });
+
   } catch (error: any) {
     console.error('❌ Error updating attendance:', error);
-    return NextResponse.json({ success: false, message: 'Failed to update attendance', error: error.message }, { status: 500 });
+    return NextResponse.json({
+      success: false,
+      message: 'Failed to update attendance',
+      error: error.message
+    }, { status: 500 });
   }
 }
 
