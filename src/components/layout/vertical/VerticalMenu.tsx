@@ -108,7 +108,7 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
           </MenuItem>
         )}
 
-        {(isAdmin || isSuperAdmin) && (
+        {(isSuperAdmin) && (
           <MenuSection label='Attendance Management'>
             <MenuItem href='/attendance' icon={<i className='tabler-smart-home' />}>
               Attendance
