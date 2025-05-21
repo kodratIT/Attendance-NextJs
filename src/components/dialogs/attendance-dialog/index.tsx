@@ -26,8 +26,8 @@ type AttendanceDialogProps = {
   refreshData: () => void;
 };
 
-const [message, setMessage] = useState('');
-const [isError, setIsError] = useState(false);
+// const [message, setMessage] = useState('');
+// const [isError, setIsError] = useState(false);
 
 
 const AddContent = ({ handleClose, refreshData }: { handleClose: () => void; refreshData: () => void }) => {
@@ -35,8 +35,8 @@ const AddContent = ({ handleClose, refreshData }: { handleClose: () => void; ref
 
   const handleCreate = async () => {
     setLoading(true);
-    setMessage('');
-    setIsError(false);
+    // setMessage('');
+    // setIsError(false);
 
     const date = (document.getElementById('attendance-date') as HTMLInputElement)?.value;
     const checkInTime = (document.getElementById('attendance-checkin-time') as HTMLInputElement)?.value;
@@ -54,8 +54,8 @@ const AddContent = ({ handleClose, refreshData }: { handleClose: () => void; ref
       });
 
       const data = response.data;
-      setMessage(data.message || 'Absensi berhasil.');
-      setIsError(false);
+      // setMessage(data.message || 'Absensi berhasil.');
+      // setIsError(false);
 
       setTimeout(() => {
         refreshData();
@@ -75,8 +75,8 @@ Silakan absen pada jam shift yang berlaku:
 • Malam (15:00–17:00)`;
       }
 
-      setMessage(errMessage);
-      setIsError(true);
+      // setMessage(errMessage);
+      // setIsError(true);
     } finally {
       setLoading(false);
     }

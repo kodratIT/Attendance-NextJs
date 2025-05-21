@@ -507,8 +507,8 @@ function getShiftInfo(date: Date): { name: string; startTime: Date } | null {
   } else if ((hour === 13) || (hour === 14 && minute < 50)) {
     shiftBase.setHours(14, 0, 0, 0);
     return { name: 'Siang', startTime: shiftBase };
-  } else if ((hour === 22) || (hour === 23) || (hour === 17)) {
-    shiftBase.setHours(22, 59, 0, 0);
+  } else if ((hour === 15) || (hour === 16) || (hour === 17)) {
+    shiftBase.setHours(15, 45, 0, 0);
     return { name: 'Malam', startTime: shiftBase };
   } else {
     return null;
