@@ -117,7 +117,7 @@ export async function GET(req: Request) {
       });
     }
 
-    console.log(attendanceData)
+    // console.log(attendanceData)  
     return new Response(JSON.stringify(attendanceData), { status: 200, headers: createCORSHeaders() });
   } catch (error: any) {
     console.error('❌ Error fetching attendance records:', error);

@@ -216,7 +216,7 @@ const fetchData = async () => {
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: {
-        pageSize: 5, // Set default jumlah item per halaman menjadi 5
+        pageSize: 10, // Set default jumlah item per halaman menjadi 5
       },
     },
   })
@@ -233,9 +233,9 @@ const fetchData = async () => {
             onChange={(e) => table.setPageSize(Number(e.target.value))}
             className="is-[70px]"
           >
-            <MenuItem value="5">5</MenuItem>
-            <MenuItem value="7">7</MenuItem>
-            <MenuItem value="9">9</MenuItem>
+            <MenuItem value="10">10</MenuItem>
+            <MenuItem value="20">20</MenuItem>
+            <MenuItem value="50">50</MenuItem>
           </CustomTextField>
 
           {/* Tombol Refresh dengan Loading */}
