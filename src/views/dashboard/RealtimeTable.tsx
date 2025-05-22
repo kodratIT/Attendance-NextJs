@@ -60,7 +60,7 @@ import OpenDialogOnElementClick from '@components/dialogs/OpenDialogOnElementCli
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
-
+import TableFilters from '@/views/attendance/TableFilters'
 import axios from 'axios'
 import {database} from "@/libs/firebase/firebase";
 import { ref, onValue, set } from "firebase/database";
@@ -163,7 +163,8 @@ const RealtimeTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState(...[tableData])
   const [filteredData, setFilteredData] = useState(data)
-  const [globalFilter, setGlobalFilter] = useState('')
+  const [globalFilter, setGlobalFilter] = useState<string>('')
+  const [role, setRoles] = useState('')
   const [loading,setLoading] = useState<boolean>(false)
 
   const getColorByLateBy = (lateBy: number) => (lateBy === 0 ? "OnTime" : "Late");
@@ -196,11 +197,14 @@ const RealtimeTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
       
       let attendanceData: AttendanceRowType[] = attendanceRes.data || []
 
+      const lock = role || "";
       if (role === 'Admin') {
         attendanceData = attendanceData.filter((row: AttendanceRowType) => {
           return typeof row?.areaId === 'string' && userAreaIds.includes(row.areaId)
         })
       }
+
+      setRoles(lock)
 
   //       // Hitung present dan late
   // let late = 0
@@ -408,8 +412,9 @@ const RealtimeTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
   return (
     <>
       <Card>
-        {/* <TableFilters setLoading={setLoading} setData={setFilteredData} tableData={tableData} /> */}
-        
+        {(role.toLowerCase() =="super admin") && (
+          <TableFilters setLoading={setLoading} setData={setFilteredData} tableData={tableData} />
+        )}
         <div className='flex justify-between flex-col items-start md:flex-row md:items-center p-6 border-bs gap-4'>
         <div className="flex items-center gap-2">
 

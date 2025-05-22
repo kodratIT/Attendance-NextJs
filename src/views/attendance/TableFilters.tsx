@@ -102,7 +102,7 @@ const TableFilters = ({
     <CardContent>
       <Grid container spacing={6}>
         {/* Filter Status */}
-        <Grid item xs={12} sm={4}>
+        <Grid item xs={12} sm={6}>
           <CustomTextField
             select
             fullWidth
@@ -122,7 +122,7 @@ const TableFilters = ({
           </CustomTextField>
         </Grid>
 
-        {/* Filter Rentang Waktu */}
+        {/* Filter Rentang Waktu
         <Grid item xs={12} sm={4}>
           <CustomTextField
             select
@@ -141,10 +141,10 @@ const TableFilters = ({
             <MenuItem value="14d">Last 14 Days</MenuItem>
             <MenuItem value="1m">Last 1 Month</MenuItem>
           </CustomTextField>
-        </Grid>
+        </Grid> */}
 
         {/* Filter Area */}
-        <Grid item xs={12} sm={4}>
+        <Grid item xs={12} sm={6}>
           <CustomTextField
             select
             fullWidth
