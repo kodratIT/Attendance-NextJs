@@ -220,8 +220,8 @@ export async function GET(req: Request) {
     for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
       dateRange.push(d.toISOString().split('T')[0]); // Format: YYYY-MM-DD
     }
-
-    console.log(`📅 Date Range:`, dateRange);
+// 
+    // console.log(`📅 Date Range:`, dateRange);
 
     // 2️⃣ Ambil semua dokumen attendance/{userId}/day/{date} untuk setiap tanggal dalam rentang
     const attendancePromises = userIds.flatMap(userId =>
@@ -234,8 +234,8 @@ export async function GET(req: Request) {
     const validRecords = attendanceSnapshots
       .map((snap, index) => (snap.exists() ? { userId: userIds[Math.floor(index / dateRange.length)], date: dateRange[index % dateRange.length], snap } : null))
       .filter(record => record !== null) as { userId: string; date: string; snap: any }[];
-
-    console.log(`✅ Found ${validRecords.length} valid attendance records.`);
+// 
+    // console.log(`✅ Found ${validRecords.length} valid attendance records.`);
 
     if (validRecords.length === 0) {
       return new Response(JSON.stringify([]), {
@@ -262,55 +262,50 @@ export async function GET(req: Request) {
 
         const userData = userDocSnap.data();
 
-        console.log(`👤 Processing user: ${userId} for date ${date}`);
-        console.log("📄 User Data:", userData);
+        // console.log(`👤 Processing user: ${userId} for date ${date}`);
+        // console.log("📄 User Data:", userData);
 
         const userName = userData?.name ?? 'Unknown';
         const avatar = userData?.avatar || 'https://randomuser.me/api/portraits/men/1.jpg';
-        const { shifts, areas, ...rest } = userData ?? {};
+        // const {  ...rest } = userData ?? {};
 
-        let shiftName: string = 'Unknown'; // Harus string, bukan string array
-        if (Array.isArray(shifts) && shifts.every(shift => shift instanceof DocumentReference)) {
-          try {
-            const shiftDocs = await Promise.all(shifts.map(shift => getDoc(shift)));
+        // let shiftName: string = 'Unknown'; // Harus string, bukan string array
+        // if (Array.isArray(shifts) && shifts.every(shift => shift instanceof DocumentReference)) {
+        //   try {
+        //     const shiftDocs = await Promise.all(shifts.map(shift => getDoc(shift)));
 
-            shiftDocs.forEach((shiftSnap, index) => {
-              console.log(`Shift ${index} snapshot:`, shiftSnap.data());
-            });
+        //     shiftDocs.forEach((shiftSnap, index) => {
+        //       console.log(`Shift ${index} snapshot:`, shiftSnap.data());
+        //     });
 
-            const shiftNames = shiftDocs
-              .filter(shiftSnap => shiftSnap.exists()) // Pastikan dokumen ada
-              .map(shiftSnap => {
-                const data = shiftSnap.data();
-                console.log("Shift data:", data); // Debugging log
-                return data && typeof data === 'object' && 'name' in data ? data.name : 'Unknown';
-              });
+        //     const shiftNames = shiftDocs
+        //       .filter(shiftSnap => shiftSnap.exists()) // Pastikan dokumen ada
+        //       .map(shiftSnap => {
+        //         const data = shiftSnap.data();
+        //         console.log("Shift data:", data); // Debugging log
+        //         return data && typeof data === 'object' && 'name' in data ? data.name : 'Unknown';
+        //       });
 
-            // Gabungkan hasil menjadi string
-            shiftName = shiftNames.length ? shiftNames.join(', ') : 'Unknown';
+        //     // Gabungkan hasil menjadi string
+        //     shiftName = shiftNames.length ? shiftNames.join(', ') : 'Unknown';
 
-            console.log("Final shift names:", shiftName);
-          } catch (error) {
-            console.error("Error fetching shifts:", error);
+        //     console.log("Final shift names:", shiftName);
+        //   } catch (error) {
+        //     console.error("Error fetching shifts:", error);
+        //   }
+        // }
+
+
+      let areaName = 'Unknown'
+      let areaId = dayDocSnap.data().areaId
+        if (areaId) {
+          const areaDocRef = doc(firestore, 'areas', areaId)
+          const areaSnap = await getDoc(areaDocRef)
+
+          if (areaSnap.exists()) {
+            const data = areaSnap.data()
+            areaName = data.name ?? 'Unknown'
           }
-        }
-
-
-        let areaName = 'Unknown'
-        let areaId = ''
-
-        if (Array.isArray(areas) && areas.every(area => area instanceof DocumentReference)) {
-        const areaDocs = await Promise.all(areas.map(area => getDoc(area)))
-
-        const validAreaData = areaDocs
-          .filter(areaSnap => areaSnap.exists())
-          .map(areaSnap => ({
-            id: areaSnap.id,
-            name: (areaSnap.data() as { name?: string }).name ?? 'Unknown'
-          }))
-
-        areaName = validAreaData.map(area => area.name).join(', ') || 'Unknown'
-        areaId = validAreaData.map(area => area.id).join(', ') || ''
         }
 
         const attendanceRaw = dayDocSnap.data();
@@ -322,7 +317,7 @@ export async function GET(req: Request) {
           date: date,
           areas: areaName,
           areaId: areaId, 
-          shifts: shiftName,
+          shifts: attendanceRaw.shiftName,
           avatar: avatar,
           checkIn: attendanceRaw?.checkIn || {
             time: '-',
