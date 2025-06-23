@@ -223,6 +223,7 @@ export async function GET(req: Request) {
 // 
     // console.log(`📅 Date Range:`, dateRange);
 
+
     // 2️⃣ Ambil semua dokumen attendance/{userId}/day/{date} untuk setiap tanggal dalam rentang
     const attendancePromises = userIds.flatMap(userId =>
       dateRange.map(date => getDoc(doc(firestore, `attendance/${userId}/day/${date}`)))
@@ -302,11 +303,33 @@ export async function GET(req: Request) {
           const areaDocRef = doc(firestore, 'areas', areaId)
           const areaSnap = await getDoc(areaDocRef)
 
-          if (areaSnap.exists()) {
-            const data = areaSnap.data()
-            areaName = data.name ?? 'Unknown'
+          // if (areaSnap.exists()) {
+          //   const data = areaSnap.data()
+          //   areaName = data.name ?? 'Unknown'
+          // }
+          if (dayDocSnap.exists()) {
+            const data = dayDocSnap.data();
+            let locationName = data?.checkIn?.location?.name;
+
+            switch (locationName?.toLowerCase()) {
+              case 'buluran':
+                areaName = 'Praktek Buluran';
+                break;
+              case 'eka jaya':
+                areaName = 'Klinik Dokter Yanti Ekajaya';
+                break;
+              case 'patimura':
+                areaName = 'Praktek Patimura';
+                break;
+              case 'olak kemang':
+                areaName = 'Praktek Olak Kemang';
+                break;
+              default:
+                areaName = locationName; // fallback ke nama asli jika tidak cocok
+            }
           }
         }
+
 
         const attendanceRaw = dayDocSnap.data();
 
