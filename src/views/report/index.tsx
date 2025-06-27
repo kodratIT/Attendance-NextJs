@@ -61,7 +61,8 @@ import tableStyles from '@core/styles/table.module.css'
 
 import axios from 'axios'
 
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
+
 
 type Colors = {
   [key: string]: ThemeColor
@@ -253,34 +254,34 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
         </div>
       )
     }),
-    columnHelper.accessor('shifts', {
-      header: 'Shift',
-      cell: ({ row }) => (
-        <div className='flex items-center gap-2'>
-          <Typography className='capitalize' color='text.primary'>
-            {row.original.shifts}
-          </Typography>
-        </div>
-      )
-    }),
-    columnHelper.accessor('areas', {
-      header: 'Cabang',
-      cell: ({ row }) => (
-        <Typography className='capitalize' color='text.primary'>
-          {row.original.areas}
-        </Typography>
-      )
-    }),
-    columnHelper.accessor('earlyLeaveBy', {
-      header: 'Pulang Lebih Awal',
-      cell: ({ row }) => (
-        <Typography className='capitalize' color='text.primary'>
-          {formatSecondsToTime(row.original.earlyLeaveBy)}
-        </Typography>
-      )
-    }),
+    // columnHelper.accessor('shifts', {
+    //   header: 'Shift',
+    //   cell: ({ row }) => (
+    //     <div className='flex items-center gap-2'>
+    //       <Typography className='capitalize' color='text.primary'>
+    //         {row.original.shifts}
+    //       </Typography>
+    //     </div>
+    //   )
+    // }),
+    // columnHelper.accessor('areas', {
+    //   header: 'Cabang',
+    //   cell: ({ row }) => (
+    //     <Typography className='capitalize' color='text.primary'>
+    //       {row.original.areas}
+    //     </Typography>
+    //   )
+    // }),
+    // columnHelper.accessor('earlyLeaveBy', {
+    //   header: 'Pulang Lebih Awal',
+    //   cell: ({ row }) => (
+    //     <Typography className='capitalize' color='text.primary'>
+    //       {formatSecondsToTime(row.original.earlyLeaveBy)}
+    //     </Typography>
+    //   )
+    // }),
     columnHelper.accessor('lateBy', {
-      header: 'Keterlambatan',
+      header: 'Peformance',
       cell: ({ row }) => (
         <Typography className='capitalize' color='text.primary'>
           {formatSecondsToTime(row.original.lateBy)}
@@ -312,6 +313,10 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
           /> */}
           <IconButton onClick={()=> handleDownloadExcel(row.original.userId)} disabled={loadingDownload}>
                   {loadingDownload ? <CircularProgress size={24} /> : <i className="tabler-download text-blue-500" />}
+          </IconButton>
+
+          <IconButton onClick={() => handleDownloadSlipGajiResmi(row.original.userId)}>
+            <i className="tabler-file-invoice text-green-500" />
           </IconButton>
 
         </div>
@@ -399,6 +404,246 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
     }
 };
 
+const handleDownloadSemuaSlipGaji = () => {
+  try {
+    if (!data || Object.keys(data).length === 0) {
+      alert("Data pegawai kosong.");
+      return;
+    }
+
+    const sheetData: (string | number)[][] = [];
+
+    const formatRupiah = (value: number) => {
+      return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+      }).format(value);
+    };
+
+    const headerRow = ["No", "Nama Pegawai", "Tempat Praktek", "Hari", "Gaji per Hari", "Jumlah"];
+    let no = 1;
+
+    for (const userId of Object.keys(data)) {
+       let iduser: any = userId;
+      const records = data[iduser];
+      if (!Array.isArray(records) || records.length === 0) continue;
+
+      const pegawai = records[0];
+      const nama = pegawai.name || "Tanpa Nama";
+      const role = (pegawai.role || "").toLowerCase();
+
+      const lokasiFix = (namaLokasi: string, isMinggu: boolean): string => {
+        let lokasi = namaLokasi;
+        if (/aurduri/i.test(namaLokasi)) lokasi = "Patimura";
+        return isMinggu ? `Praktek ${lokasi} Minggu` : `Praktek ${lokasi}`;
+      };
+
+      const tempatMap: Record<string, { hari: number; gajiPerHari: number }> = {};
+
+      for (const item of records) {
+        const tanggal = new Date(item.date);
+        const isMinggu = tanggal.getDay() === 0;
+
+        const lokasiAsli = item.checkIn?.location?.name || "Tanpa Lokasi";
+        const lokasi = lokasiFix(lokasiAsli, isMinggu);
+        let gaji = 0;
+
+        if (role === "dokter") {
+          if (/olak\s*kemang/i.test(lokasiAsli)) {
+            gaji = item.daily_rate || 0;
+            if (isMinggu) gaji += 50000;
+          } else {
+            gaji = item.daily_rate || 0;
+          }
+        } else if (role === "pegawai") {
+          if (/olak\s*kemang/i.test(lokasiAsli)) {
+            gaji = isMinggu ? 100000 : 70000;
+          } else {
+            gaji = (item.daily_rate || 0) + (isMinggu ? 10000 : 0);
+          }
+        } else {
+          gaji = item.daily_rate || 0;
+        }
+
+        if (!tempatMap[lokasi]) {
+          tempatMap[lokasi] = { hari: 0, gajiPerHari: gaji };
+        }
+        tempatMap[lokasi].hari += 1;
+      }
+
+      // Tambahkan header untuk setiap pegawai
+      sheetData.push(headerRow);
+
+      let firstRow = true;
+      let total = 0;
+
+      for (const [lokasi, info] of Object.entries(tempatMap)) {
+        const jumlah = info.hari * info.gajiPerHari;
+        total += jumlah;
+
+        sheetData.push([
+          firstRow ? no : "",
+          firstRow ? nama : "",
+          lokasi,
+          info.hari,
+          formatRupiah(info.gajiPerHari),
+          formatRupiah(jumlah)
+        ]);
+
+        firstRow = false;
+      }
+
+      // Baris total per pegawai
+      sheetData.push(["", "", "Rekapan Gaji", "", "", formatRupiah(total)]);
+      sheetData.push([]); // baris kosong antar pegawai
+      no++;
+    }
+
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // Beri border ke semua sel yang ada isinya
+    const sheetRange = XLSX.utils.decode_range(worksheet['!ref'] || '');
+    for (let row = sheetRange.s.r; row <= sheetRange.e.r; row++) {
+      for (let col = sheetRange.s.c; col <= sheetRange.e.c; col++) {
+        const cellAddr = XLSX.utils.encode_cell({ r: row, c: col });
+        if (!worksheet[cellAddr]) continue;
+
+        worksheet[cellAddr].s = worksheet[cellAddr].s || {};
+        worksheet[cellAddr].s.border = {
+          top: { style: "thin", color: { rgb: "000000" } },
+          bottom: { style: "thin", color: { rgb: "000000" } },
+          left: { style: "thin", color: { rgb: "000000" } },
+          right: { style: "thin", color: { rgb: "000000" } },
+        };
+
+        // Tebalkan header dan baris "Rekapan Gaji"
+        const isHeader = sheetData[row]?.[0] === "No";
+        const isTotal = sheetData[row]?.[2] === "Rekapan Gaji";
+        if (isHeader || isTotal) {
+          worksheet[cellAddr].s.font = { bold: true };
+        }
+      }
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Semua Slip Gaji");
+    XLSX.writeFile(workbook, `SlipGaji_SemuaPegawai.xlsx`);
+  } catch (err) {
+    console.error("❌ Gagal membuat slip gaji:", err);
+    alert("Gagal membuat slip gaji.");
+  }
+};
+
+const handleDownloadSlipGajiResmi = (userId: any) => {
+  try {
+    const filterData = excelData[userId];
+
+    if (!Array.isArray(filterData) || filterData.length === 0) {
+      alert("Data tidak ditemukan.");
+      return;
+    }
+
+    const pegawai = filterData[0];
+    const nama = pegawai.name || 'Tanpa Nama';
+    const role = (pegawai.role || '').toLowerCase();
+
+    const lokasiFix = (namaLokasi: string, isMinggu: boolean): string => {
+      let lokasi = namaLokasi;
+      if (/aurduri/i.test(namaLokasi)) lokasi = "Patimura";
+      return isMinggu ? `Praktek ${lokasi} Minggu` : `Praktek ${lokasi}`;
+    };
+
+    const formatRupiah = (value: number) => {
+      return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+      }).format(value);
+    };
+
+    // Rekap berdasarkan lokasi
+    const tempatMap: Record<string, { hari: number; gajiPerHari: number }> = {};
+    for (const item of filterData) {
+      const tanggal = new Date(item.date);
+      const isMinggu = tanggal.getDay() === 0;
+
+      const lokasiAsli = item.checkIn?.location?.name || 'Tanpa Lokasi';
+      const lokasi = lokasiFix(lokasiAsli, isMinggu);
+
+      let gaji = 0;
+
+      if (role === "dokter") {
+        if (/olak\s*kemang/i.test(lokasiAsli)) {
+          gaji = item.daily_rate || 0;
+          if (isMinggu) gaji += 50000;
+        } else {
+          gaji = item.daily_rate || 0;
+        }
+      } else if (role === "pegawai") {
+        if (/olak\s*kemang/i.test(lokasiAsli)) {
+          gaji = isMinggu ? 100000 : 70000;
+        } else {
+          gaji = (item.daily_rate || 0) + (isMinggu ? 10000 : 0);
+        }
+      } else {
+        gaji = item.daily_rate || 0;
+      }
+
+      if (!tempatMap[lokasi]) {
+        tempatMap[lokasi] = { hari: 0, gajiPerHari: gaji };
+      }
+      tempatMap[lokasi].hari += 1;
+    }
+
+    // Susun sheet
+    const sheetData: (string | number)[][] = [];
+    sheetData.push(["No", "Nama Pegawai", "Tempat Praktek", "Hari", "Gaji per Hari", "Jumlah"]);
+
+    let no = 1;
+    let total = 0;
+    let firstRow = true;
+
+    for (const [lokasi, info] of Object.entries(tempatMap)) {
+      const jumlah = info.hari * info.gajiPerHari;
+      total += jumlah;
+      sheetData.push([
+        firstRow ? no : "",
+        firstRow ? nama : "",
+        lokasi,
+        info.hari,
+        formatRupiah(info.gajiPerHari),
+        formatRupiah(jumlah),
+      ]);
+      firstRow = false;
+    }
+
+    sheetData.push(["", "", "Rekapan Gaji", "", "", formatRupiah(total)]);
+
+    // Buat file Excel
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // Bold header & total
+    const boldRows = [0, sheetData.length - 1];
+    boldRows.forEach(row => {
+      const cols = sheetData[row].length;
+      for (let c = 0; c < cols; c++) {
+        const cellAddr = XLSX.utils.encode_cell({ c, r: row });
+        if (worksheet[cellAddr]) {
+          worksheet[cellAddr].s = { font: { bold: true } };
+        }
+      }
+    });
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Slip Gaji");
+    XLSX.writeFile(workbook, `SlipGaji_${nama}.xlsx`);
+  } catch (err) {
+    console.error("❌ Gagal membuat slip gaji:", err);
+    alert("Gagal membuat slip gaji.");
+  }
+};
+
 const downloadExcel = (data: any[], fileName: string) => {
     try {
         const workbook = XLSX.utils.book_new();
@@ -445,14 +690,15 @@ const downloadExcel = (data: any[], fileName: string) => {
               placeholder='Pencarian Pengguna'
               className='is-full sm:is-auto'
             />
-            {/* <Button
+            <Button
               color='primary'
               variant='tonal'
+              onClick={handleDownloadSemuaSlipGaji}
               startIcon={<i className='tabler-upload' />}
               className='is-full sm:is-auto'
             >
-              Export
-            </Button> */}
+              Expor Laporan
+            </Button>
           </div>
         </div>
         <div className='overflow-x-auto'>

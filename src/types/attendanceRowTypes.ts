@@ -6,6 +6,7 @@ export type AttendanceRowType = {
     areas: string;
     areaId: string;
     avatar: string;
+    role:string;
     checkIn: {
       time: string;
       faceVerified: boolean;

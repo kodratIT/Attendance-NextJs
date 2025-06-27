@@ -58,17 +58,40 @@ export async function GET(req: Request) {
       fromDate = new Date(today);
     }
 
-    const userCollection = collection(firestore, 'users');
-    const usersSnapshot = await getDocs(userCollection);
-    
-    const userMap: Record<string, any> = {};
-    usersSnapshot.forEach(userDoc => {
-      const userData = userDoc.data();
-      userMap[userDoc.id] = {
-        name: userData.name || "Unknown",
-        avatar: userData.avatar || "https://randomuser.me/api/portraits/men/1.jpg",
-      };
-    });
+  const userCollection = collection(firestore, 'users');
+  const usersSnapshot = await getDocs(userCollection);
+
+  const userMap: Record<string, any> = {};
+
+  for (const userDoc of usersSnapshot.docs) {
+    const userData = userDoc.data();
+    let roleName = "Unknown";
+    let areaName = "Unknown";
+
+    // Ambil nama role jika role adalah DocumentReference
+    if (userData.role instanceof DocumentReference) {
+      const roleSnap = await getDoc(userData.role);
+      if (roleSnap.exists()) {
+        roleName = roleSnap.data().name || "Unknown";
+      }
+    }
+
+    // Ambil nama area dari array of DocumentReference: areas[0]
+    if (Array.isArray(userData.areas) && userData.areas[0] instanceof DocumentReference) {
+      const areaSnap = await getDoc(userData.areas[0]);
+      if (areaSnap.exists()) {
+        areaName = areaSnap.data().name || "Unknown";
+      }
+    }
+
+    userMap[userDoc.id] = {
+      name: userData.name || "Unknown",
+      avatar: userData.avatar || "https://randomuser.me/api/portraits/men/1.jpg",
+      role: roleName,
+      area:areaName,
+      daily_rate: userData.daily_rate,
+    };
+  }
 
     if (Object.keys(userMap).length === 0) {
       return new Response(JSON.stringify({}), { status: 200, headers: createCORSHeaders() });
@@ -87,35 +110,46 @@ export async function GET(req: Request) {
     const attendanceData: Record<string, any[]> = {};
     
     for (let i = 0; i < attendanceSnapshots.length; i++) {
-      const snap = attendanceSnapshots[i];
-      if (!snap.exists()) continue;
+  const snap = attendanceSnapshots[i];
+  if (!snap.exists()) continue;
 
-      const userId = Object.keys(userMap)[Math.floor(i / dateRange.length)];
-      const date = dateRange[i % dateRange.length];
-      const data = snap.data();
-      
-      if (!attendanceData[userId]) {
-        attendanceData[userId] = [];
-      }
-      
-      attendanceData[userId].push({
-        attendanceId: `${date}`,
-        userId: userId,
-        name: userMap[userId].name,
-        date: date,
-        areas: data.areas,
-        shifts: data.shifts,
-        avatar: userMap[userId].avatar,
-        checkIn: data.checkIn ?? { time: '-', faceVerified: false, location: {} },
-        checkOut: data.checkOut ?? { time: '-', faceVerified: false, location: {} },
-        createdAt: date,
-        updatedAt: date,
-        earlyLeaveBy: data.earlyLeaveBy ?? 0,
-        lateBy: data.lateBy ?? 0,
-        status: data.status ?? "Unknown",
-        workingHours: data.workingHours ?? 0
-      });
-    }
+  const userId = Object.keys(userMap)[Math.floor(i / dateRange.length)];
+  const date = dateRange[i % dateRange.length];
+  const data = snap.data();
+
+  if (!attendanceData[userId]) {
+    attendanceData[userId] = [];
+  }
+
+  const shiftName = data.shiftName || "";
+  const originalGap = data.arivalGap ?? 0;
+
+  // Kurangi 30 menit (1800 detik) jika shift adalah "Shift Siang"
+  const adjustedGap =
+    shiftName === "Shift Siang"
+      ? Math.max(originalGap - 1800, 0)
+      : originalGap;
+
+  attendanceData[userId].push({
+    attendanceId: `${date}`,
+    userId: userId,
+    name: userMap[userId].name,
+    role: userMap[userId].role,
+    date: date,
+    areas: userMap[userId].area,
+    shifts: shiftName,
+    avatar: userMap[userId].avatar,
+    checkIn: data.checkIn ?? { time: '-', faceVerified: false, location: {} },
+    checkOut: data.checkOut ?? { time: '-', faceVerified: false, location: {} },
+    createdAt: date,
+    updatedAt: date,
+    daily_rate: userMap[userId].daily_rate,
+    earlyLeaveBy: data.earlyLeaveBy ?? 0,
+    lateBy: adjustedGap,
+    status: data.status ?? "Unknown",
+    workingHours: data.workingHours ?? 0
+  });
+}
 
     // console.log(attendanceData)  
     return new Response(JSON.stringify(attendanceData), { status: 200, headers: createCORSHeaders() });
