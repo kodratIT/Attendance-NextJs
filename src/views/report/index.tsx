@@ -745,7 +745,7 @@ const handleExportPresensiSemuaKaryawan = () => {
               startIcon={<i className='tabler-upload' />}
               className='is-full sm:is-auto'
             >
-              Expor Laporan
+              Expor Slip Gaji
             </Button>
           </div>
         </div>
