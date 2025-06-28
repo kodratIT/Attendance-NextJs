@@ -405,8 +405,9 @@ const ReportTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
 };
 
 const handleDownloadSemuaSlipGaji = () => {
+  console.log(excelData)
   try {
-    if (!data || Object.keys(data).length === 0) {
+    if (!excelData || Object.keys(excelData).length === 0) {
       alert("Data pegawai kosong.");
       return;
     }
@@ -424,9 +425,9 @@ const handleDownloadSemuaSlipGaji = () => {
     const headerRow = ["No", "Nama Pegawai", "Tempat Praktek", "Hari", "Gaji per Hari", "Jumlah"];
     let no = 1;
 
-    for (const userId of Object.keys(data)) {
+    for (const userId of Object.keys(excelData)) {
        let iduser: any = userId;
-      const records = data[iduser];
+      const records = excelData[iduser];
       if (!Array.isArray(records) || records.length === 0) continue;
 
       const pegawai = records[0];
@@ -659,6 +660,44 @@ const downloadExcel = (data: any[], fileName: string) => {
     }
 };
 
+const handleExportPresensiSemuaKaryawan = () => {
+  try {
+    if (!excelData || Object.keys(excelData).length === 0) {
+      alert("Data presensi kosong.");
+      return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+
+    for (const userId in excelData) {
+      const records = excelData[userId];
+      if (!Array.isArray(records) || records.length === 0) continue;
+
+      const pegawai = records[0];
+      const nama = pegawai.name || "Tanpa Nama";
+      const sheetName = nama.substring(0, 31); // Sheet name max 31 chars
+
+      const sheetData = records.map((record) => ({
+        Tanggal: record.date,
+        Nama: record.name,
+        Cabang: record.areas,
+        "Jam Masuk": record.checkIn.time,
+        "Jam Keluar": record.checkOut.time,
+        Status: record.status,
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(sheetData);
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    }
+
+    XLSX.writeFile(workbook, `Laporan_Presensi_SemuaPegawai.xlsx`);
+  } catch (err) {
+    console.error("❌ Gagal ekspor presensi:", err);
+    alert("Gagal ekspor presensi.");
+  }
+};
+
+
   
   return (
     <>
@@ -690,6 +729,15 @@ const downloadExcel = (data: any[], fileName: string) => {
               placeholder='Pencarian Pengguna'
               className='is-full sm:is-auto'
             />
+            <Button
+              color='primary'
+              variant='tonal'
+              onClick={handleExportPresensiSemuaKaryawan}
+              startIcon={<i className='tabler-upload' />}
+              className='is-full sm:is-auto'
+            >
+              Expor Laporan Presensi
+            </Button>
             <Button
               color='primary'
               variant='tonal'
