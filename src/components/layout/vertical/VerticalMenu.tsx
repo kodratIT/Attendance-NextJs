@@ -46,7 +46,6 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
   useEffect(() => {
     const fetchSession = async () => {
       const s = await getSession()
-      console.log('✅ Session fetched:', s)
       setSession(s)
       setLoading(false)
     }
@@ -57,13 +56,6 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
   const roleName = session?.user?.role?.name
   const isAdmin = roleName === 'Admin'
   const isSuperAdmin = roleName === 'Super Admin'
-  const isPegawai = roleName === 'Pegawai'
-  const isDokter = roleName === 'Dokter'
-
-  console.log('🔁 Render VerticalMenu - role:', roleName)
-  console.log('🔐 isAdmin:', isAdmin)
-  console.log('🛡️ isSuperAdmin:', isSuperAdmin)
-  console.log('📱 isBreakpointReached:', isBreakpointReached)
 
   if (loading) {
     return (
@@ -104,52 +96,58 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
       >
         {(isAdmin || isSuperAdmin) && (
           <MenuItem href='/home' icon={<i className='tabler-dashboard' />}>
-            Dashboard
+            Beranda
           </MenuItem>
         )}
 
-        {(isSuperAdmin) && (
-          <MenuSection label='Attendance Management'>
-            <MenuItem href='/attendance' icon={<i className='tabler-smart-home' />}>
-              Attendance
+        {isSuperAdmin && (
+          <MenuSection label='Manajemen Tindakan'>
+            <MenuItem href='#' icon={<i className='tabler-stethoscope' />}>
+              Tindakan Medis
             </MenuItem>
-            {isSuperAdmin && (
-              <MenuItem href='/shifts' icon={<i className='tabler-calendar-time' />}>
-                Shifts
-              </MenuItem>
-            )}
+          </MenuSection>
+        )}
+
+
+        {isSuperAdmin && (
+          <MenuSection label='Manajemen Absensi'>
+            <MenuItem href='/attendance' icon={<i className='tabler-smart-home' />}>
+              Presensi
+            </MenuItem>
+            <MenuItem href='/shifts' icon={<i className='tabler-calendar-time' />}>
+              Jadwal Shift
+            </MenuItem>
           </MenuSection>
         )}
 
         {isSuperAdmin && (
-          <MenuSection label='Geolocation'>
+          <MenuSection label='Geolokasi'>
             <MenuItem href='/areas' icon={<i className='tabler-chart-area' />}>
-              Areas
+              Wilayah
             </MenuItem>
             <MenuItem href='/locations' icon={<i className='tabler-map' />}>
-              Locations
+              Lokasi
             </MenuItem>
           </MenuSection>
         )}
 
-        {(isSuperAdmin) && (
-          <MenuSection label='Reports & Analysis'>
+        {isSuperAdmin && (
+          <MenuSection label='Laporan & Analisis'>
             <MenuItem href='/report' icon={<i className='tabler-report' />}>
               Laporan
             </MenuItem>
           </MenuSection>
         )}
 
-        {(isSuperAdmin) && (
-          <MenuSection label='Access Control'>
-            {isSuperAdmin && (
-              <SubMenu label='Roles & Permissions' icon={<i className='tabler-lock' />}>
-                <MenuItem href='/roles'>Roles</MenuItem>
-                <MenuItem href='/permissions'>Permissions</MenuItem>
-              </SubMenu>
-            )}
+
+        {isSuperAdmin && (
+          <MenuSection label='Kontrol Akses'>
+            <SubMenu label='Peran & Izin' icon={<i className='tabler-lock' />}>
+              <MenuItem href='/roles'>Peran</MenuItem>
+              <MenuItem href='/permissions'>Izin</MenuItem>
+            </SubMenu>
             <MenuItem href='/users' icon={<i className='tabler-users' />}>
-              Users
+              Pengguna
             </MenuItem>
           </MenuSection>
         )}
@@ -159,4 +157,3 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
 }
 
 export default VerticalMenu
-  
