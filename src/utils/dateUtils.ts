@@ -20,6 +20,13 @@ export function timeSpentToDate(timestamp: any) {
     return `${formattedHours}.${formattedMinutes} Jam`;
   };
   
+  export const formatSecondsToMinutes = (seconds: number): string => {
+    if (seconds < 0) return "0 menit"; // Jika negatif, anggap nol
+
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes} menit`;
+  };
+
 
   export const formatTime = (date: Date): string => {
     let hours = date.getHours();

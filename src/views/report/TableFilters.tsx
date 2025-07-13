@@ -39,23 +39,95 @@ interface AttendanceMapping {
   [userId: string]: Attendance[];
 }
 
+const parseTimeToMinutes = (timeStr: string): number | null => {
+  if (!timeStr || timeStr === '-' || (!timeStr.includes(':') && !timeStr.includes('.'))) return null;
 
-const processAttendanceData = (rawData: Record<string, AttendanceRowType[]>): AttendanceRowType[] => {
-  const processedData: Record<string, AttendanceRowType> = {};
+  const delimiter = timeStr.includes(':') ? ':' : '.';
+  const [h, m] = timeStr.split(delimiter).map(Number);
+  if (isNaN(h) || isNaN(m)) return null;
+
+  return h * 60 + m;
+};
+
+
+const getBatasTelatFromCheckIn = (
+  checkInStr: string,
+  role: string,
+  lokasi: string
+): number | null => {
+  const roleLower = role?.toLowerCase() || '';
+  const lokasiLower = lokasi?.toLowerCase() || '';
+  const checkInMin = parseTimeToMinutes(checkInStr);
+  if (checkInMin === null) return null;
+
+  if (checkInMin >= parseTimeToMinutes("06:00")! && checkInMin <= parseTimeToMinutes("09:00")!) {
+    return parseTimeToMinutes(roleLower === 'dokter' ? "08:00" : "07:30")!;
+  }
+
+  if (checkInMin >= parseTimeToMinutes("12:00")! && checkInMin <= parseTimeToMinutes("15:00")!) {
+    return parseTimeToMinutes(roleLower === 'dokter' ? "14:00" : "13:30")!;
+  }
+
+  if (
+    lokasiLower.includes('olak kemang') &&
+    checkInMin >= parseTimeToMinutes("15:00")! &&
+    checkInMin <= parseTimeToMinutes("17:00")!
+  ) {
+    return parseTimeToMinutes(roleLower === 'dokter' ? "16:00" : "15:45")!;
+  }
+
+  return null;
+};
+
+
+const calculateScore = (record: AttendanceRowType): number => {
+  const jamMasukStr = record.checkIn?.time || '-';
+  const role = record.role || '';
+  const lokasi = record.checkIn?.location?.name || '';
+
+  const checkInMin = parseTimeToMinutes(jamMasukStr);
+  const batasMin = getBatasTelatFromCheckIn(jamMasukStr, role, lokasi);
+
+  if (checkInMin === null || batasMin === null) return 100;
+
+  const diff = batasMin - checkInMin;
+  return Math.max(0, 100 + diff); // Naik/turun sesuai menit lebih awal atau telat
+};
+
+const processAttendanceData = (
+  rawData: Record<string, AttendanceRowType[]>
+): AttendanceRowType[] => {
+  const processedData: Record<string, AttendanceRowType & { totalScore: number }> = {};
 
   Object.values(rawData).flat().forEach((record) => {
-    const { userId, earlyLeaveBy, lateBy, workingHours, ...rest } = record;
+    const { userId, earlyLeaveBy, workingHours,lateBy } = record;
+    if (!userId) return;
+
+    const score = calculateScore(record);
 
     if (!processedData[userId]) {
-      processedData[userId] = { ...record };
+      processedData[userId] = {
+        ...record,
+        areaId: record.areaId || '',
+        role: record.role || '',
+        earlyLeaveBy: earlyLeaveBy || 0,
+        workingHours: workingHours || 0,
+        score: 0,
+        totalScore: score,
+        totalHari: 1
+      };
     } else {
-      processedData[userId].earlyLeaveBy += earlyLeaveBy;
-      processedData[userId].lateBy += lateBy;
-      processedData[userId].workingHours += workingHours;
+      processedData[userId].earlyLeaveBy += earlyLeaveBy || 0;
+      processedData[userId].workingHours += workingHours || 0;
+      processedData[userId].totalScore += score;
+      processedData[userId].totalHari += 1;
     }
   });
 
-  return Object.values(processedData);
+  return Object.values(processedData).map((item) => ({
+    ...item,
+    score: item.totalScore, // murni jumlah score semua hari
+  }));
 };
 
 const TableFilters = ({
@@ -67,21 +139,19 @@ const TableFilters = ({
   setLoading: (loading: boolean) => void;
   setData: (data: AttendanceRowType[]) => void;
   tableData?: AttendanceRowType[];
-  setExcelData:(data: AttendanceMapping[]) => void;
+  setExcelData: (data: AttendanceMapping[]) => void;
 }) => {
-  // States
   const [status, setStatus] = useState<AttendanceRowType['status']>('');
-  const [dateRange, setDateRange] = useState<string>('');
+  const [dateRange, setDateRange] = useState<string>('7d');
   const [area, setArea] = useState<string>('');
   const [areas, setAreas] = useState<AreaType[]>([]);
-  const [isFiltering, setIsFiltering] = useState<boolean>(false);
+  const [rawData, setRawData] = useState<AttendanceRowType[]>([]);
 
-  // Fetch daftar area kerja dari API saat pertama kali load
+  // ✅ Fetch daftar area sekali saja
   useEffect(() => {
     const fetchAreas = async () => {
       try {
         const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/areas`);
-        
         setAreas(res.data.data);
       } catch (error) {
         console.error("❌ Error fetching areas:", error);
@@ -90,241 +160,83 @@ const TableFilters = ({
     fetchAreas();
   }, []);
 
-  // Fetch data berdasarkan filter hanya jika pengguna melakukan perubahan
-  // useEffect(() => {
-  //   if (!isFiltering) return;
+  // ✅ Fetch API hanya saat dateRange berubah
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const today = new Date();
+        today.setHours(today.getHours() + 7);
 
-  //   const fetchFilteredData = async () => {
-  //     try {
-  //       setLoading(true);
+        let toDate = new Date(today);
+        let fromDate = new Date(toDate);
+        const awalBulanIni = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+        awalBulanIni.setHours(awalBulanIni.getHours() + 7);
 
-  //       let fromDate = new Date();
-  //       let toDate = new Date();
+        if (dateRange === "7d") {
+          fromDate.setDate(toDate.getDate() - 6);
+        } else if (dateRange === "14d") {
+          fromDate.setDate(toDate.getDate() - 13);
+        } else if (dateRange === "1m") {
+          fromDate.setMonth(toDate.getMonth() - 1);
+        } else if (dateRange === "last1m") {
+          fromDate = new Date(toDate.getFullYear(), toDate.getMonth() - 1, 1);
+          toDate = new Date(toDate.getFullYear(), toDate.getMonth(), 0);
+        }
 
-  //       // Menyesuaikan zona waktu ke UTC+7
-  //       fromDate.setHours(fromDate.getHours() + 7);
-  //       toDate.setHours(toDate.getHours() + 7);
+        if (dateRange !== "last1m" && fromDate < awalBulanIni) {
+          fromDate = awalBulanIni;
+        }
 
-  //       // Menyesuaikan rentang waktu berdasarkan filter
-  //       // Menyesuaikan rentang waktu berdasarkan filter
-  //       if (dateRange === "7d") {
-  //         fromDate.setDate(toDate.getDate() - 6);
-  //       } else if (dateRange === "14d") {
-  //         fromDate.setDate(toDate.getDate() - 13);
-  //       } else if (dateRange === "1m") {
-  //         fromDate.setMonth(toDate.getMonth() - 1);
-  //       }
+        const formattedFromDate = fromDate.toISOString().split('T')[0];
+        const formattedToDate = toDate.toISOString().split('T')[0];
 
-  //       // Format tanggal dengan UTC+7
-  //       const formattedFromDate = fromDate.getUTCFullYear() + '-' + 
-  //                                 String(fromDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
-  //                                 String(fromDate.getUTCDate()).padStart(2, '0');
+        const res = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/report?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
+        );
 
-  //       const formattedToDate = toDate.getUTCFullYear() + '-' + 
-  //                               String(toDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
-  //                               String(toDate.getUTCDate()).padStart(2, '0');
-                                
-  //       const res = await axios.get(
-  //         `${process.env.NEXT_PUBLIC_API_URL}/api/report?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
-  //       );
-                             
-  //       let b =processAttendanceData(res.data)
-  //       let filteredData = b;
-
-  //       // if (status) {
-  //       //   filteredData = filteredData.filter((row: AttendanceRowType) => row.status === status);
-  //       // }
-  //       if (area) {
-  //         console.log("Data sebelum filter:", filteredData);
-  //         filteredData = filteredData.filter((row: AttendanceRowType) => row.areas.trim().toLowerCase() === area.trim().toLowerCase());
-  //         console.log("Data setelah filter:", filteredData); 
-  //       }
-        
-
-  //       setExcelData(res.data)
-  //       setData(filteredData);
-  //       setLoading(false);
-  //     } catch (error) {
-  //       console.error("❌ Error fetching filtered data:", error);
-  //       setData([]);
-  //     }
-  //   };
-  //   fetchFilteredData();
-  
-  // }, [status, dateRange, area, isFiltering, setData,setLoading]);
-// useEffect(() => {
-//   if (!isFiltering) return;
-
-//   const fetchFilteredData = async () => {
-//     try {
-//       setLoading(true);
-
-//       let toDate = new Date();
-//       toDate.setHours(toDate.getHours() + 7); // UTC+7
-
-//       let fromDate = new Date(toDate);
-
-//       const awalBulanIni = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
-//       awalBulanIni.setHours(awalBulanIni.getHours() + 7); // UTC+7
-
-//       if (dateRange === "7d") {
-//         fromDate.setDate(toDate.getDate() - 6);
-//       } else if (dateRange === "14d") {
-//         fromDate.setDate(toDate.getDate() - 13);
-//       } else if (dateRange === "1m") {
-//         fromDate.setMonth(toDate.getMonth() - 1);
-//       }
-
-//       if (fromDate < awalBulanIni) {
-//         fromDate = awalBulanIni;
-//       }
-
-//       const formattedFromDate =
-//         fromDate.getUTCFullYear() +
-//         '-' +
-//         String(fromDate.getUTCMonth() + 1).padStart(2, '0') +
-//         '-' +
-//         String(fromDate.getUTCDate()).padStart(2, '0');
-
-//       const formattedToDate =
-//         toDate.getUTCFullYear() +
-//         '-' +
-//         String(toDate.getUTCMonth() + 1).padStart(2, '0') +
-//         '-' +
-//         String(toDate.getUTCDate()).padStart(2, '0');
-
-//       const res = await axios.get(
-//         `${process.env.NEXT_PUBLIC_API_URL}/api/report?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
-//       );
-
-//       const processed = processAttendanceData(res.data);
-//       let filteredData = processed;
-
-//       // Filter berdasarkan area (jika ada)
-//       if (area) {
-//         filteredData = filteredData.filter(
-//           (row: AttendanceRowType) =>
-//             row.areas.trim().toLowerCase() === area.trim().toLowerCase()
-//         );
-//       }
-
-//       // Filter berdasarkan status → role
-//       if (status) {
-//         filteredData = filteredData.filter(
-//           (row: AttendanceRowType) =>
-//             row.role?.trim().toLowerCase() === status.trim().toLowerCase()
-//         );
-//       }
-
-//       setExcelData(res.data);
-//       setData(filteredData);
-//       setLoading(false);
-//     } catch (error) {
-//       console.error("❌ Error fetching filtered data:", error);
-//       setData([]);
-//     }
-//   };
-
-//   fetchFilteredData();
-// }, [status, dateRange, area, isFiltering, setData, setLoading]);
-
-const [rawData, setRawData] = useState<any[]>([]); // cache data dari API
-
-useEffect(() => {
-  if (!isFiltering) return;
-
-  const fetchApiIfNeeded = async () => {
-    try {
-      setLoading(true);
-
-      // Hitung range tanggal
-      let toDate = new Date();
-      toDate.setHours(toDate.getHours() + 7); // UTC+7
-      let fromDate = new Date(toDate);
-      const awalBulanIni = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
-      awalBulanIni.setHours(awalBulanIni.getHours() + 7);
-
-      if (dateRange === "7d") {
-        fromDate.setDate(toDate.getDate() - 6);
-      } else if (dateRange === "14d") {
-        fromDate.setDate(toDate.getDate() - 13);
-      } else if (dateRange === "1m") {
-        fromDate.setMonth(toDate.getMonth() - 1);
+        const processed = processAttendanceData(res.data);
+        setRawData(processed);
+        setExcelData(res.data);
+        applyFilters(processed);
+      } catch (err) {
+        console.error("❌ Gagal ambil data:", err);
+        setData([]);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      if (fromDate < awalBulanIni) {
-        fromDate = awalBulanIni;
-      }
+    fetchData();
+  }, [dateRange]);
 
-      const formattedFromDate =
-        fromDate.getUTCFullYear() +
-        '-' +
-        String(fromDate.getUTCMonth() + 1).padStart(2, '0') +
-        '-' +
-        String(fromDate.getUTCDate()).padStart(2, '0');
+  // ✅ Filter lokal saat role atau area berubah
+  useEffect(() => {
+    if (rawData.length > 0) applyFilters(rawData);
+  }, [area, status]);
 
-      const formattedToDate =
-        toDate.getUTCFullYear() +
-        '-' +
-        String(toDate.getUTCMonth() + 1).padStart(2, '0') +
-        '-' +
-        String(toDate.getUTCDate()).padStart(2, '0');
+  const applyFilters = (source: AttendanceRowType[]) => {
+    let filtered = [...source];
 
-      // Ambil data dari API
-      const res = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/report?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
+    if (area) {
+      filtered = filtered.filter(
+        (row) => row.areas?.trim().toLowerCase() === area.trim().toLowerCase()
       );
-
-      const processed = processAttendanceData(res.data);
-
-      // Cache
-      setRawData(processed);
-      setExcelData(res.data);
-
-      // Apply filter langsung
-      applyFilters(processed);
-
-      setLoading(false);
-    } catch (err) {
-      console.error("❌ Gagal ambil data:", err);
-      setData([]);
-      setLoading(false);
     }
+
+    if (status) {
+      filtered = filtered.filter(
+        (row) => row.role?.trim().toLowerCase() === status.trim().toLowerCase()
+      );
+    }
+
+    setData(filtered);
   };
-
-  fetchApiIfNeeded();
-}, [dateRange, isFiltering]);
-
-useEffect(() => {
-  if (!isFiltering || rawData.length === 0) return;
-
-  // Apply ulang filter dari cache
-  applyFilters(rawData);
-}, [area, status]);
-
-// 🔧 Fungsi pemroses filter
-const applyFilters = (source: AttendanceRowType[]) => {
-  let filtered = [...source];
-
-  if (area) {
-    filtered = filtered.filter(
-      (row) => row.areas?.trim().toLowerCase() === area.trim().toLowerCase()
-    );
-  }
-
-  if (status != "") {
-    filtered = filtered.filter(
-      (row) => row.role?.trim().toLowerCase() === status.trim().toLowerCase()
-    );
-  }
-
-  setData(filtered);
-};
 
   return (
     <CardContent>
       <Grid container spacing={4}>
-        {/* Filter Status */}
+        {/* Filter Roles */}
         <Grid item xs={12} sm={4}>
           <CustomTextField
             select
@@ -332,10 +244,7 @@ const applyFilters = (source: AttendanceRowType[]) => {
             label="Roles"
             id="select-status"
             value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as AttendanceRowType['role']);
-              setIsFiltering(true);
-            }}
+            onChange={(e) => setStatus(e.target.value as AttendanceRowType['role'])}
             SelectProps={{ displayEmpty: true }}
           >
             <MenuItem value="">All Roles</MenuItem>
@@ -344,54 +253,47 @@ const applyFilters = (source: AttendanceRowType[]) => {
           </CustomTextField>
         </Grid>
 
-        {/* Filter Rentang Waktu */}
+        {/* Filter Date Range */}
         <Grid item xs={12} sm={4}>
-            <CustomTextField
-              select
-              fullWidth
-              label="Rentang Tanggal"
-              id="select-date-range"
-              value={dateRange}
-              onChange={(e) => {
-                setDateRange(e.target.value);
-                setIsFiltering(true);
-              }}
-              SelectProps={{ displayEmpty: true }}
-            >
-              <MenuItem value="">Hari Ini </MenuItem>
-              <MenuItem value="7d">7 Hari Terakhir</MenuItem>
-              <MenuItem value="14d">14 Hari Terakhir</MenuItem>
-              <MenuItem value="1m">1 Bulan Terakhir</MenuItem>
-
-            </CustomTextField>
-          </Grid>
+          <CustomTextField
+            select
+            fullWidth
+            label="Rentang Waktu"
+            id="select-date-range"
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+            SelectProps={{ displayEmpty: true }}
+          >
+            <MenuItem value="7d">7 Hari Terakhir</MenuItem>
+            <MenuItem value="14d">14 Hari Terakhir</MenuItem>
+            <MenuItem value="1m">Bulan Ini</MenuItem>
+            <MenuItem value="last1m">Bulan Lalu</MenuItem>
+          </CustomTextField>
+        </Grid>
 
         {/* Filter Area */}
         <Grid item xs={12} sm={4}>
-        <CustomTextField
-          select
-          fullWidth
-          label="Cabang"
-          id="select-area"
-          value={area}
-          onChange={(e) => {
-            setArea(e.target.value);
-            setIsFiltering(true);
-          }}
-          SelectProps={{ displayEmpty: true }}
-        >
-          <MenuItem value="">Semua Cabang</MenuItem>
-          {areas.length > 0 ? (
-            areas.map((areaObj) => (
-              <MenuItem key={areaObj.name} value={areaObj.name}>
-                {areaObj.name}
-              </MenuItem>
-            ))
-          ) : (
-            <MenuItem disabled>Tidak ada wilayah yang tersedia</MenuItem>
-          )}
-        </CustomTextField>
-      </Grid>
+          <CustomTextField
+            select
+            fullWidth
+            label="Cabang"
+            id="select-area"
+            value={area}
+            onChange={(e) => setArea(e.target.value)}
+            SelectProps={{ displayEmpty: true }}
+          >
+            <MenuItem value="">Semua Cabang</MenuItem>
+            {areas.length > 0 ? (
+              areas.map((areaObj) => (
+                <MenuItem key={areaObj.name} value={areaObj.name}>
+                  {areaObj.name}
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem disabled>Tidak ada wilayah yang tersedia</MenuItem>
+            )}
+          </CustomTextField>
+        </Grid>
       </Grid>
     </CardContent>
   );

@@ -45,55 +45,68 @@ const TableFilters = ({
   useEffect(() => {
     if (!isFiltering) return;
 
-    const fetchFilteredData = async () => {
-      try {
-        setLoading(true);
+const fetchFilteredData = async () => {
+  try {
+    setLoading(true);
 
-        let fromDate = new Date();
-        let toDate = new Date();
+    const today = new Date();
+    today.setHours(today.getHours() + 7); // UTC+7
 
-        // Menyesuaikan zona waktu ke UTC+7
-        fromDate.setHours(fromDate.getHours() + 7);
-        toDate.setHours(toDate.getHours() + 7);
+    const todayLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-        // Menyesuaikan rentang waktu berdasarkan filter
-        if (dateRange === "7d") {
-          fromDate.setDate(toDate.getDate() - 6);
-        } else if (dateRange === "14d") {
-          fromDate.setDate(toDate.getDate() - 13);
-        } else if (dateRange === "1m") {
-          fromDate.setMonth(toDate.getMonth() - 1);
-        }
+    let fromDate = new Date(todayLocal);
+    let toDate = new Date(todayLocal);
 
-        // Format tanggal dengan UTC+7
-        const formattedFromDate = fromDate.getUTCFullYear() + '-' + 
-                                  String(fromDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
-                                  String(fromDate.getUTCDate()).padStart(2, '0');
+    if (dateRange === "7d") {
+      fromDate.setDate(todayLocal.getDate() - 6);
+    } else if (dateRange === "14d") {
+      fromDate.setDate(todayLocal.getDate() - 13);
+    } else if (dateRange === "1m") {
+      fromDate.setMonth(todayLocal.getMonth() - 1);
+    } else if (dateRange === "last1m") {
+      fromDate = new Date(todayLocal.getFullYear(), todayLocal.getMonth() - 1, 1); // Awal bulan lalu
+      toDate = new Date(todayLocal.getFullYear(), todayLocal.getMonth(), 0);       // Akhir bulan lalu
+    }
 
-        const formattedToDate = toDate.getUTCFullYear() + '-' + 
-                                String(toDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
-                                String(toDate.getUTCDate()).padStart(2, '0');
-                                
-        const res = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
-        );
+    // Format tanggal
+    const formattedFromDate =
+      fromDate.getUTCFullYear() +
+      '-' +
+      String(fromDate.getUTCMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(fromDate.getUTCDate()).padStart(2, '0');
 
-        let filteredData = res.data;
+    const formattedToDate =
+      toDate.getUTCFullYear() +
+      '-' +
+      String(toDate.getUTCMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(toDate.getUTCDate()).padStart(2, '0');
 
-        if (status) {
-          filteredData = filteredData.filter((row: AttendanceRowType) => row.status === status);
-        }
-        if (area) {
-          filteredData = filteredData.filter((row: AttendanceRowType) => row.areas === area);
-        }
 
-        setData(filteredData);
-        setLoading(false);
-      } catch (error) {
-        console.error("❌ Error fetching filtered data:", error);
-        setData([]);
-      }
-    };
+    const res = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/attendance?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
+    );
+
+    let filteredData = res.data;
+
+    if (status) {
+      filteredData = filteredData.filter((row: AttendanceRowType) => row.status === status);
+    }
+
+    if (area) {
+      filteredData = filteredData.filter((row: AttendanceRowType) => row.areas === area);
+    }
+
+    setData(filteredData);
+    setLoading(false);
+    } catch (error) {
+      console.error("❌ Error fetching filtered data:", error);
+      setData([]);
+      setLoading(false);
+    }
+  };
+
     fetchFilteredData();
   
   }, [status, dateRange, area, isFiltering, setData,setLoading]);

@@ -33,4 +33,7 @@ export type AttendanceRowType = {
     userId: string;
     workingHours: number;
     action: string[];
+    score: number;
+    totalScore: number;
+    totalHari: number;
   };
