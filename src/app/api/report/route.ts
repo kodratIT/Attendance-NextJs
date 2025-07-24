@@ -141,6 +141,7 @@ export async function GET(req: Request) {
           ? Math.max(originalGap - 1800, 0)
           : originalGap;
 
+    
       attendanceData[userId].push({
         attendanceId: `${date}`,
         userId: userId,

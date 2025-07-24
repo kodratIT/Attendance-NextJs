@@ -555,58 +555,68 @@ const ReportTable = () => {
   };
 
   const handleDownloadSemuaSlipGaji = () => {
-    console.log(excelData)
-    try {
-      if (!excelData || Object.keys(excelData).length === 0) {
-        alert("Data pegawai kosong.");
-        return;
+
+    
+  try {
+    if (!excelData || Object.keys(excelData).length === 0) {
+      alert("Data pegawai kosong.");
+      return;
+    }
+
+    const formatRupiah = (value: number) => {
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        minimumFractionDigits: 0,
+      }).format(value);
+    };
+
+    const lokasiFix = (namaLokasi: string, isMinggu: boolean): string => {
+      let lokasi = namaLokasi;
+      if (/aurduri/i.test(namaLokasi)) lokasi = "Patimura";
+      return isMinggu ? `Praktek ${lokasi} Minggu` : `Praktek ${lokasi}`;
+    };
+
+    const groupedByRole: Record<string, string[]> = {};
+    for (const userId of Object.keys(excelData)) {
+      let userid1 : any= userId;
+      const records = excelData[userid1];
+      if (Array.isArray(records) && records.length > 0) {
+        const role = records[0]?.role?.toLowerCase() || "unknown";
+        if (!groupedByRole[role]) groupedByRole[role] = [];
+        groupedByRole[role].push(userId);
       }
+    }
 
+    const workbook = XLSX.utils.book_new();
+
+    for (const role of Object.keys(groupedByRole)) {
+      const userIds = groupedByRole[role];
       const sheetData: (string | number)[][] = [];
-
-      const formatRupiah = (value: number) => {
-        return new Intl.NumberFormat('id-ID', {
-          style: 'currency',
-          currency: 'IDR',
-          minimumFractionDigits: 0,
-        }).format(value);
-      };
-
       const headerRow = ["No", "Nama Pegawai", "Tempat Praktek", "Hari", "Gaji per Hari", "Jumlah"];
       let no = 1;
 
-      for (const userId of Object.keys(excelData)) {
-        let iduser: any = userId;
-        const records = excelData[iduser];
+      for (const userId of userIds) {
+      let userid2 : any= userId;
+
+        const records = excelData[userid2];
         if (!Array.isArray(records) || records.length === 0) continue;
 
         const pegawai = records[0];
         const nama = pegawai.name || "Tanpa Nama";
-        const role = (pegawai.role || "").toLowerCase();
-
-        const lokasiFix = (namaLokasi: string, isMinggu: boolean): string => {
-          let lokasi = namaLokasi;
-          if (/aurduri/i.test(namaLokasi)) lokasi = "Patimura";
-          return isMinggu ? `Praktek ${lokasi} Minggu` : `Praktek ${lokasi}`;
-        };
 
         const tempatMap: Record<string, { hari: number; gajiPerHari: number }> = {};
 
         for (const item of records) {
           const tanggal = new Date(item.date);
           const isMinggu = tanggal.getDay() === 0;
-
           const lokasiAsli = item.checkIn?.location?.name || "Tanpa Lokasi";
           const lokasi = lokasiFix(lokasiAsli, isMinggu);
-          let gaji = 0;
 
+          let gaji = 0;
           if (role === "dokter") {
-            if (/olak\s*kemang/i.test(lokasiAsli)) {
-              gaji = item.daily_rate || 0;
-              if (isMinggu) gaji += 50000;
-            } else {
-              gaji = item.daily_rate || 0;
-            }
+            gaji = item.daily_rate || 0;
+            if (/olak\s*kemang/i.test(lokasiAsli) && isMinggu) gaji += 50000;
           } else if (role === "pegawai") {
             if (/olak\s*kemang/i.test(lokasiAsli)) {
               gaji = isMinggu ? 100000 : 70000;
@@ -623,68 +633,333 @@ const ReportTable = () => {
           tempatMap[lokasi].hari += 1;
         }
 
-        // Tambahkan header untuk setiap pegawai
-        sheetData.push(headerRow);
+        // Tambah ke sheet jika ada data
+        if (Object.keys(tempatMap).length > 0) {
+          sheetData.push(headerRow);
+          let firstRow = true;
+          let total = 0;
 
-        let firstRow = true;
-        let total = 0;
+          for (const [lokasi, info] of Object.entries(tempatMap)) {
+            const jumlah = info.hari * info.gajiPerHari;
+            total += jumlah;
 
-        for (const [lokasi, info] of Object.entries(tempatMap)) {
-          const jumlah = info.hari * info.gajiPerHari;
-          total += jumlah;
+            sheetData.push([
+              firstRow ? no : "",
+              firstRow ? nama : "",
+              lokasi,
+              info.hari,
+              formatRupiah(info.gajiPerHari),
+              formatRupiah(jumlah),
+            ]);
 
-          sheetData.push([
-            firstRow ? no : "",
-            firstRow ? nama : "",
-            lokasi,
-            info.hari,
-            formatRupiah(info.gajiPerHari),
-            formatRupiah(jumlah)
-          ]);
-
-          firstRow = false;
-        }
-
-        // Baris total per pegawai
-        sheetData.push(["", "", "Rekapan Gaji", "", "", formatRupiah(total)]);
-        sheetData.push([]); // baris kosong antar pegawai
-        no++;
-      }
-
-      const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
-
-      // Beri border ke semua sel yang ada isinya
-      const sheetRange = XLSX.utils.decode_range(worksheet['!ref'] || '');
-      for (let row = sheetRange.s.r; row <= sheetRange.e.r; row++) {
-        for (let col = sheetRange.s.c; col <= sheetRange.e.c; col++) {
-          const cellAddr = XLSX.utils.encode_cell({ r: row, c: col });
-          if (!worksheet[cellAddr]) continue;
-
-          worksheet[cellAddr].s = worksheet[cellAddr].s || {};
-          worksheet[cellAddr].s.border = {
-            top: { style: "thin", color: { rgb: "000000" } },
-            bottom: { style: "thin", color: { rgb: "000000" } },
-            left: { style: "thin", color: { rgb: "000000" } },
-            right: { style: "thin", color: { rgb: "000000" } },
-          };
-
-          // Tebalkan header dan baris "Rekapan Gaji"
-          const isHeader = sheetData[row]?.[0] === "No";
-          const isTotal = sheetData[row]?.[2] === "Rekapan Gaji";
-          if (isHeader || isTotal) {
-            worksheet[cellAddr].s.font = { bold: true };
+            firstRow = false;
           }
+
+          sheetData.push(["", "", "Rekapan Gaji", "", "", formatRupiah(total)]);
+          sheetData.push([]);
+          no++;
         }
       }
 
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Semua Slip Gaji");
-      XLSX.writeFile(workbook, `SlipGaji_SemuaPegawai.xlsx`);
-    } catch (err) {
-      console.error("❌ Gagal membuat slip gaji:", err);
-      alert("Gagal membuat slip gaji.");
+      if (sheetData.length > 0) {
+        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+        const sheetName = role === "dokter" ? "Dokter" : "Pegawai";
+const safeSheetName = workbook.SheetNames.includes(sheetName)
+  ? `${sheetName} (${Math.floor(Math.random() * 1000)})`
+  : sheetName;
+
+XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName);
+
+      }
     }
-  };
+
+    // ✅ Final check
+    if (workbook.SheetNames.length === 0) {
+      alert("Tidak ada data valid untuk dibuat slip gaji.");
+      return;
+    }
+
+    XLSX.writeFile(workbook, "SlipGaji_Pegawai_Dokter.xlsx");
+  } catch (err) {
+    console.error("❌ Gagal membuat slip gaji:", err);
+    alert("Gagal membuat slip gaji.");
+  }
+};
+
+  // const handleDownloadSemuaSlipGaji = () => {
+  //   console.log(excelData)
+  //   try {
+  //     if (!excelData || Object.keys(excelData).length === 0) {
+  //       alert("Data pegawai kosong.");
+  //       return;
+  //     }
+
+  //     const sheetData: (string | number)[][] = [];
+
+  //     const formatRupiah = (value: number) => {
+  //       return new Intl.NumberFormat('id-ID', {
+  //         style: 'currency',
+  //         currency: 'IDR',
+  //         minimumFractionDigits: 0,
+  //       }).format(value);
+  //     };
+
+  //     const headerRow = ["No", "Nama Pegawai", "Tempat Praktek", "Hari", "Gaji per Hari", "Jumlah"];
+  //     let no = 1;
+
+  //     for (const userId of Object.keys(excelData)) {
+  //       let iduser: any = userId;
+  //       const records = excelData[iduser];
+  //       if (!Array.isArray(records) || records.length === 0) continue;
+
+  //       const pegawai = records[0];
+  //       const nama = pegawai.name || "Tanpa Nama";
+  //       const role = (pegawai.role || "").toLowerCase();
+
+  //       const lokasiFix = (namaLokasi: string, isMinggu: boolean): string => {
+  //         let lokasi = namaLokasi;
+  //         if (/aurduri/i.test(namaLokasi)) lokasi = "Patimura";
+  //         return isMinggu ? `Praktek ${lokasi} Minggu` : `Praktek ${lokasi}`;
+  //       };
+
+  //       const tempatMap: Record<string, { hari: number; gajiPerHari: number }> = {};
+
+  //       for (const item of records) {
+  //         const tanggal = new Date(item.date);
+  //         const isMinggu = tanggal.getDay() === 0;
+
+  //         const lokasiAsli = item.checkIn?.location?.name || "Tanpa Lokasi";
+  //         const lokasi = lokasiFix(lokasiAsli, isMinggu);
+  //         let gaji = 0;
+
+  //         if (role === "dokter") {
+  //           if (/olak\s*kemang/i.test(lokasiAsli)) {
+  //             gaji = item.daily_rate || 0;
+  //             if (isMinggu) gaji += 50000;
+  //           } else {
+  //             gaji = item.daily_rate || 0;
+  //           }
+  //         } else if (role === "pegawai") {
+  //           if (/olak\s*kemang/i.test(lokasiAsli)) {
+  //             gaji = isMinggu ? 100000 : 70000;
+  //           } else {
+  //             gaji = (item.daily_rate || 0) + (isMinggu ? 10000 : 0);
+  //           }
+  //         } else {
+  //           gaji = item.daily_rate || 0;
+  //         }
+
+  //         if (!tempatMap[lokasi]) {
+  //           tempatMap[lokasi] = { hari: 0, gajiPerHari: gaji };
+  //         }
+  //         tempatMap[lokasi].hari += 1;
+  //       }
+
+  //       // Tambahkan header untuk setiap pegawai
+  //       sheetData.push(headerRow);
+
+  //       let firstRow = true;
+  //       let total = 0;
+
+  //       for (const [lokasi, info] of Object.entries(tempatMap)) {
+  //         const jumlah = info.hari * info.gajiPerHari;
+  //         total += jumlah;
+
+  //         sheetData.push([
+  //           firstRow ? no : "",
+  //           firstRow ? nama : "",
+  //           lokasi,
+  //           info.hari,
+  //           formatRupiah(info.gajiPerHari),
+  //           formatRupiah(jumlah)
+  //         ]);
+
+  //         firstRow = false;
+  //       }
+
+  //       // Baris total per pegawai
+  //       sheetData.push(["", "", "Rekapan Gaji", "", "", formatRupiah(total)]);
+  //       sheetData.push([]); // baris kosong antar pegawai
+  //       no++;
+  //     }
+
+  //     const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+  //     // Beri border ke semua sel yang ada isinya
+  //     const sheetRange = XLSX.utils.decode_range(worksheet['!ref'] || '');
+  //     for (let row = sheetRange.s.r; row <= sheetRange.e.r; row++) {
+  //       for (let col = sheetRange.s.c; col <= sheetRange.e.c; col++) {
+  //         const cellAddr = XLSX.utils.encode_cell({ r: row, c: col });
+  //         if (!worksheet[cellAddr]) continue;
+
+  //         worksheet[cellAddr].s = worksheet[cellAddr].s || {};
+  //         worksheet[cellAddr].s.border = {
+  //           top: { style: "thin", color: { rgb: "000000" } },
+  //           bottom: { style: "thin", color: { rgb: "000000" } },
+  //           left: { style: "thin", color: { rgb: "000000" } },
+  //           right: { style: "thin", color: { rgb: "000000" } },
+  //         };
+
+  //         // Tebalkan header dan baris "Rekapan Gaji"
+  //         const isHeader = sheetData[row]?.[0] === "No";
+  //         const isTotal = sheetData[row]?.[2] === "Rekapan Gaji";
+  //         if (isHeader || isTotal) {
+  //           worksheet[cellAddr].s.font = { bold: true };
+  //         }
+  //       }
+  //     }
+
+  //     const workbook = XLSX.utils.book_new();
+  //     XLSX.utils.book_append_sheet(workbook, worksheet, "Semua Slip Gaji");
+  //     XLSX.writeFile(workbook, `SlipGaji_SemuaPegawai.xlsx`);
+  //   } catch (err) {
+  //     console.error("❌ Gagal membuat slip gaji:", err);
+  //     alert("Gagal membuat slip gaji.");
+  //   }
+  // };
+
+// const handleDownloadSemuaSlipGaji = () => {
+//   try {
+//     if (!excelData || Object.keys(excelData).length === 0) {
+//       alert("Data pegawai kosong.");
+//       return;
+//     }
+
+//     // Format rupiah
+//     const formatRupiah = (value: number) =>
+//       new Intl.NumberFormat("id-ID", {
+//         style: "currency",
+//         currency: "IDR",
+//         minimumFractionDigits: 0,
+//       }).format(value);
+
+//     // Konversi nama lokasi
+//     const lokasiFix = (namaLokasi: string, isMinggu: boolean) => {
+//       let lokasi = namaLokasi;
+//       if (/aurduri/i.test(namaLokasi)) lokasi = "Patimura";
+//       return isMinggu ? `Praktek ${lokasi} Minggu` : `Praktek ${lokasi}`;
+//     };
+
+//     // Kelompokkan berdasarkan area + role
+
+//    const grouped: Record<string, string[]> = {};
+
+//   for (const userId of Object.keys(excelData)) {
+//     let userid2: any = userId;
+//     const records = excelData[userid2];
+//     if (!Array.isArray(records) || records.length === 0) continue;
+
+//     const role = records[0]?.role?.toLowerCase() || "unknown";
+
+//     const key = role === "dokter" ? "dokter" : records[0]?.checkIn?.location?.name || "unknown";
+
+//     if (!grouped[key]) grouped[key] = [];
+//     grouped[key].push(userId);
+//   }
+
+//     const workbook = XLSX.utils.book_new();
+
+//     for (const key of Object.keys(grouped)) {
+//       const [areaId, role] = key.split("_");
+//       const userIds = grouped[key];
+//       const sheetData: (string | number)[][] = [];
+
+//       const headerRow = [
+//         "No",
+//         "Nama Pegawai",
+//         "Tempat Praktek",
+//         "Hari",
+//         "Gaji per Hari",
+//         "Jumlah",
+//       ];
+//       let no = 1;
+
+//       for (const userId of userIds) {
+//          let userid2: any = userId;
+//         const records = excelData[userid2];
+//         if (!Array.isArray(records) || records.length === 0) continue;
+
+//         const nama = records[0]?.name || "Tanpa Nama";
+
+//         const tempatMap: Record<string, { hari: number; gajiPerHari: number }> =
+//           {};
+
+//        for (const item of records) {
+//           const tanggal = new Date(item.date);
+//           const isMinggu = tanggal.getDay() === 0;
+
+//           const lokasiAsli = item.checkIn?.location?.name || "Tanpa Lokasi";
+//           const lokasi = lokasiFix(lokasiAsli, isMinggu);
+//           let gaji = 0;
+
+//           if (role === "dokter") {
+//             if (/olak\s*kemang/i.test(lokasiAsli)) {
+//               gaji = item.daily_rate || 0;
+//               if (isMinggu) gaji += 50000;
+//             } else {
+//               gaji = item.daily_rate || 0;
+//             }
+//           } else if (role === "pegawai") {
+//             if (/olak\s*kemang/i.test(lokasiAsli)) {
+//               gaji = isMinggu ? 100000 : 70000;
+//             } else {
+//               gaji = (item.daily_rate || 0) + (isMinggu ? 10000 : 0);
+//             }
+//           } else {
+//             gaji = item.daily_rate || 0;
+//           }
+
+//           if (!tempatMap[lokasi]) {
+//             tempatMap[lokasi] = { hari: 0, gajiPerHari: gaji };
+//           }
+//           tempatMap[lokasi].hari += 1;
+//         }
+
+//         sheetData.push(headerRow);
+//         let firstRow = true;
+//         let total = 0;
+
+//         for (const [lokasi, info] of Object.entries(tempatMap)) {
+//           const jumlah = info.hari * info.gajiPerHari;
+//           total += jumlah;
+
+//           sheetData.push([
+//             firstRow ? no : "",
+//             firstRow ? nama : "",
+//             lokasi,
+//             info.hari,
+//             formatRupiah(info.gajiPerHari),
+//             formatRupiah(jumlah),
+//           ]);
+//           firstRow = false;
+//         }
+
+//         sheetData.push(["", "", "Rekapan Gaji", "", "", formatRupiah(total)]);
+//         sheetData.push([]);
+//         no++;
+//       }
+
+//       // Buat worksheet dan beri style border + bold header/total
+//       const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+//       const range = XLSX.utils.decode_range(worksheet["!ref"] || "");
+
+      
+
+//     const sheetName = key === "dokter"
+//       ? "Semua Dokter"
+//       : `${key}_Pegawai`;
+
+//       XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+//     }
+
+//     XLSX.writeFile(workbook, `SlipGaji_SemuaPegawai.xlsx`);
+//   } catch (err) {
+//     console.error("❌ Gagal membuat slip gaji:", err);
+//     alert("Gagal membuat slip gaji.");
+//   }
+// };
+
+
 
   const handleDownloadSlipGajiResmi = (userId: any) => {
     try {
