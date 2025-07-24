@@ -39,68 +39,82 @@ interface AttendanceMapping {
   [userId: string]: Attendance[];
 }
 
+// Parsing waktu (mendukung format HH:MM, HH.MM, HH:MM:SS, HH.MM.SS)
 const parseTimeToMinutes = (timeStr: string): number | null => {
-  if (!timeStr || timeStr === '-' || (!timeStr.includes(':') && !timeStr.includes('.'))) return null;
-
+  if (!timeStr || timeStr === '-') return null;
   const delimiter = timeStr.includes(':') ? ':' : '.';
-  const [h, m] = timeStr.split(delimiter).map(Number);
-  if (isNaN(h) || isNaN(m)) return null;
+  const parts = timeStr.split(delimiter);
+
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
 
   return h * 60 + m;
 };
 
+const minutesToTimeStr = (minutes: number): string => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
 
-const getBatasTelatFromCheckIn = (
-  checkInStr: string,
-  role: string,
-  lokasi: string
-): number | null => {
-  const roleLower = role?.toLowerCase() || '';
-  const lokasiLower = lokasi?.toLowerCase() || '';
+const getJamDasar = (checkInStr: string, role: string, lokasi: string): number | null => {
   const checkInMin = parseTimeToMinutes(checkInStr);
   if (checkInMin === null) return null;
 
-  if (checkInMin >= parseTimeToMinutes("06:00")! && checkInMin <= parseTimeToMinutes("09:00")!) {
-    return parseTimeToMinutes(roleLower === 'dokter' ? "08:00" : "07:30")!;
+  const roleLower = role.toLowerCase();
+  const lokasiLower = lokasi.toLowerCase();
+
+  if (lokasiLower.includes('olak kemang') && checkInMin >= 900 && checkInMin <= 1020) {
+    return roleLower === 'dokter' ? 930 : 915; // Dokter: 15:30, Pegawai: 15:15
   }
 
-  if (checkInMin >= parseTimeToMinutes("12:00")! && checkInMin <= parseTimeToMinutes("15:00")!) {
-    return parseTimeToMinutes(roleLower === 'dokter' ? "14:00" : "13:30")!;
+  if (checkInMin >= 360 && checkInMin <= 540) {
+    return roleLower === 'dokter' ? 450 : 420; // Dokter: 07:30, Pegawai: 07:00
   }
 
-  if (
-    lokasiLower.includes('olak kemang') &&
-    checkInMin >= parseTimeToMinutes("15:00")! &&
-    checkInMin <= parseTimeToMinutes("17:00")!
-  ) {
-    return parseTimeToMinutes(roleLower === 'dokter' ? "16:00" : "15:45")!;
+  if (checkInMin >= 720 && checkInMin <= 900) {
+    return roleLower === 'dokter' ? 810 : 780; // Dokter: 13:30, Pegawai: 13:00
   }
 
   return null;
 };
 
-
 const calculateScore = (record: AttendanceRowType): number => {
-  const jamMasukStr = record.checkIn?.time || '-';
+  const checkInStr = record.checkIn?.time || '-';
   const role = record.role || '';
   const lokasi = record.checkIn?.location?.name || '';
 
-  const checkInMin = parseTimeToMinutes(jamMasukStr);
-  const batasMin = getBatasTelatFromCheckIn(jamMasukStr, role, lokasi);
+  const checkInMin = parseTimeToMinutes(checkInStr);
+  const jamDasarMin = getJamDasar(checkInStr, role, lokasi);
 
-  if (checkInMin === null || batasMin === null) return 100;
+  if (checkInMin === null || jamDasarMin === null) {
+    console.warn('⛔️ Data tidak valid:', { checkInStr, role, lokasi });
+    return 0;
+  }
 
-  const diff = batasMin - checkInMin;
-  return Math.max(0, 100 + diff); // Naik/turun sesuai menit lebih awal atau telat
+  if (checkInMin < jamDasarMin) return 0;
+
+  const selisih = checkInMin - jamDasarMin;
+  const batasAbsen = jamDasarMin + 60;
+
+  if (checkInMin > batasAbsen) return 0;
+
+  if (selisih <= 30) return 100 - selisih;
+
+  return Math.max(0, 70 - (selisih - 30) * 2);
 };
 
 const processAttendanceData = (
   rawData: Record<string, AttendanceRowType[]>
-): AttendanceRowType[] => {
-  const processedData: Record<string, AttendanceRowType & { totalScore: number }> = {};
+): (AttendanceRowType & { totalScore: number; totalHari: number })[] => {
+  const processedData: Record<string, AttendanceRowType & {
+    totalScore: number;
+    totalHari: number;
+  }> = {};
 
   Object.values(rawData).flat().forEach((record) => {
-    const { userId, earlyLeaveBy, workingHours,lateBy } = record;
+    const { userId, earlyLeaveBy = 0, workingHours = 0 } = record;
     if (!userId) return;
 
     const score = calculateScore(record);
@@ -108,26 +122,22 @@ const processAttendanceData = (
     if (!processedData[userId]) {
       processedData[userId] = {
         ...record,
-        areaId: record.areaId || '',
-        role: record.role || '',
-        earlyLeaveBy: earlyLeaveBy || 0,
-        workingHours: workingHours || 0,
-        score: 0,
+        earlyLeaveBy,
+        workingHours,
+        score,
         totalScore: score,
-        totalHari: 1
+        totalHari: 1,
+        averageScore: score
       };
     } else {
-      processedData[userId].earlyLeaveBy += earlyLeaveBy || 0;
-      processedData[userId].workingHours += workingHours || 0;
+      processedData[userId].earlyLeaveBy += earlyLeaveBy;
+      processedData[userId].workingHours += workingHours;
       processedData[userId].totalScore += score;
       processedData[userId].totalHari += 1;
     }
   });
 
-  return Object.values(processedData).map((item) => ({
-    ...item,
-    score: item.totalScore, // murni jumlah score semua hari
-  }));
+  return Object.values(processedData);
 };
 
 const TableFilters = ({

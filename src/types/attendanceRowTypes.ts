@@ -36,4 +36,5 @@ export type AttendanceRowType = {
     score: number;
     totalScore: number;
     totalHari: number;
+    averageScore:number;
   };

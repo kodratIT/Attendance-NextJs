@@ -92,73 +92,107 @@ export interface Attendance {
   status: string;
   workingHours: number;
 }
+type CheckInInfo = {
+  checkIn: {
+    time: string;
+    faceVerified: boolean;
+    location: {
+      name: string;
+      latitude: number;
+      longitude: number;
+    };
+  };
+  role: string;
+};
+
+type BatasTelatResult = {
+  jamDasar: string;
+  selisih: number;
+  skor: number;
+};
+
+
 
 interface AttendanceMapping {
   [userId: string]: Attendance[];
 }
-
+// Parsing waktu (mendukung format HH:MM, HH.MM, HH:MM:SS, HH.MM.SS)
 const parseTimeToMinutes = (timeStr: string): number | null => {
-  if (!timeStr || timeStr === '-' || (!timeStr.includes(':') && !timeStr.includes('.'))) return null;
-
+  if (!timeStr || timeStr === '-') return null;
   const delimiter = timeStr.includes(':') ? ':' : '.';
-  const [h, m] = timeStr.split(delimiter).map(Number);
-  if (isNaN(h) || isNaN(m)) return null;
+  const parts = timeStr.split(delimiter);
+
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
 
   return h * 60 + m;
 };
 
+const minutesToTimeStr = (minutes: number): string => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
 
-const getBatasTelatFromCheckIn = (
-  checkInStr: string,
-  role: string,
-  lokasi: string
-): number | null => {
-  const roleLower = role?.toLowerCase() || '';
-  const lokasiLower = lokasi?.toLowerCase() || '';
+const getJamDasar = (checkInStr: string, role: string, lokasi: string): number | null => {
   const checkInMin = parseTimeToMinutes(checkInStr);
   if (checkInMin === null) return null;
 
-  if (checkInMin >= parseTimeToMinutes("06:00")! && checkInMin <= parseTimeToMinutes("09:00")!) {
-    return parseTimeToMinutes(roleLower === 'dokter' ? "08:00" : "07:30")!;
+  const roleLower = role.toLowerCase();
+  const lokasiLower = lokasi.toLowerCase();
+
+  if (lokasiLower.includes('olak kemang') && checkInMin >= 900 && checkInMin <= 1020) {
+    return roleLower === 'dokter' ? 930 : 915; // Dokter: 15:30, Pegawai: 15:15
   }
 
-  if (checkInMin >= parseTimeToMinutes("12:00")! && checkInMin <= parseTimeToMinutes("15:00")!) {
-    return parseTimeToMinutes(roleLower === 'dokter' ? "14:00" : "13:30")!;
+  if (checkInMin >= 360 && checkInMin <= 540) {
+    return roleLower === 'dokter' ? 450 : 420; // Dokter: 07:30, Pegawai: 07:00
   }
 
-  if (
-    lokasiLower.includes('olak kemang') &&
-    checkInMin >= parseTimeToMinutes("15:00")! &&
-    checkInMin <= parseTimeToMinutes("17:00")!
-  ) {
-    return parseTimeToMinutes(roleLower === 'dokter' ? "16:00" : "15:45")!;
+  if (checkInMin >= 720 && checkInMin <= 900) {
+    return roleLower === 'dokter' ? 810 : 780; // Dokter: 13:30, Pegawai: 13:00
   }
 
   return null;
 };
 
-
 const calculateScore = (record: AttendanceRowType): number => {
-  const jamMasukStr = record.checkIn?.time || '-';
+  const checkInStr = record.checkIn?.time || '-';
   const role = record.role || '';
   const lokasi = record.checkIn?.location?.name || '';
 
-  const checkInMin = parseTimeToMinutes(jamMasukStr);
-  const batasMin = getBatasTelatFromCheckIn(jamMasukStr, role, lokasi);
+  const checkInMin = parseTimeToMinutes(checkInStr);
+  const jamDasarMin = getJamDasar(checkInStr, role, lokasi);
 
-  if (checkInMin === null || batasMin === null) return 100;
+  if (checkInMin === null || jamDasarMin === null) {
+    console.warn('⛔️ Data tidak valid:', { checkInStr, role, lokasi });
+    return 0;
+  }
 
-  const diff = batasMin - checkInMin;
-  return Math.max(0, 100 + diff); // Naik/turun sesuai menit lebih awal atau telat
+  if (checkInMin < jamDasarMin) return 0;
+
+  const selisih = checkInMin - jamDasarMin;
+  const batasAbsen = jamDasarMin + 60;
+
+  if (checkInMin > batasAbsen) return 0;
+
+  if (selisih <= 30) return 100 - selisih;
+
+  return Math.max(0, 70 - (selisih - 30) * 2);
 };
 
 const processAttendanceData = (
   rawData: Record<string, AttendanceRowType[]>
-): AttendanceRowType[] => {
-  const processedData: Record<string, AttendanceRowType & { totalScore: number }> = {};
+): (AttendanceRowType & { totalScore: number; totalHari: number; averageScore: number })[] => {
+  const processedData: Record<string, AttendanceRowType & {
+    totalScore: number;
+    totalHari: number;
+    averageScore: number;
+  }> = {};
 
   Object.values(rawData).flat().forEach((record) => {
-    const { userId, earlyLeaveBy, workingHours,lateBy } = record;
+    const { userId, earlyLeaveBy = 0, workingHours = 0 } = record;
     if (!userId) return;
 
     const score = calculateScore(record);
@@ -166,26 +200,25 @@ const processAttendanceData = (
     if (!processedData[userId]) {
       processedData[userId] = {
         ...record,
-        areaId: record.areaId || '',
-        role: record.role || '',
-        earlyLeaveBy: earlyLeaveBy || 0,
-        workingHours: workingHours || 0,
-        score: 0,
+        earlyLeaveBy,
+        workingHours,
+        score,
         totalScore: score,
-        totalHari: 1
+        totalHari: 1,
+        averageScore: score
       };
     } else {
-      processedData[userId].earlyLeaveBy += earlyLeaveBy || 0;
-      processedData[userId].workingHours += workingHours || 0;
+      processedData[userId].earlyLeaveBy += earlyLeaveBy;
+      processedData[userId].workingHours += workingHours;
       processedData[userId].totalScore += score;
       processedData[userId].totalHari += 1;
+      const rawAverage = processedData[userId].totalScore / processedData[userId].totalHari;
+      processedData[userId].averageScore = Math.floor(rawAverage * 100) / 100;
+
     }
   });
 
-  return Object.values(processedData).map((item) => ({
-    ...item,
-    score: item.totalScore, // murni jumlah score semua hari
-  }));
+  return Object.values(processedData);
 };
 
 const colors: Colors = {
@@ -371,6 +404,14 @@ const ReportTable = () => {
         </div>
       )
     }),
+    columnHelper.accessor('areas', {
+      header: 'Cabang',
+      cell: ({ row }) => (
+        <Typography className='capitalize' color='text.primary'>
+          {`${row.original.areas}`}
+        </Typography>
+      ) 
+    }),
     columnHelper.accessor('totalHari', {
       header: 'Hari Kerja',
       cell: ({ row }) => (
@@ -387,14 +428,24 @@ const ReportTable = () => {
         </Typography>
       ) 
     }),
-    columnHelper.accessor('score', {
-      header: 'Score Presensi',
-      cell: ({ row }) => (
-        <Typography className='capitalize' color='text.primary'>
-          {row.original.totalScore}
-        </Typography>
-      ) 
-    }),
+    // columnHelper.accessor('totalScore', {
+    //   header: 'Persentase Kedisiplinan',
+    //   cell: ({ row }) => {
+    //     const totalScore = row.original.totalScore;
+    //     const totalHari = row.original.totalHari;
+
+    //     let average = 0;
+    //     if (totalHari > 0) {
+    //       average = Math.floor((totalScore / totalHari) * 100) / 100;
+    //     }
+
+    //     return (
+    //       <Typography className='capitalize' color='text.primary'>
+    //         {totalScore}
+    //       </Typography>
+    //     );
+    //   }
+    // }),
     columnHelper.accessor('action', {
       header: 'Aksi',
       cell: ({ row }) => (
@@ -759,42 +810,184 @@ const ReportTable = () => {
       }
   };
 
-  const handleExportPresensiSemuaKaryawan = () => {
-    try {
-      if (!excelData || Object.keys(excelData).length === 0) {
-        alert("Data presensi kosong.");
-        return;
-      }
+  const getBatasTelatFromCheckIn = (data: CheckInInfo): BatasTelatResult => {
+  const checkInStr = data.checkIn?.time;
+  const role = data.role || '';
+  const lokasi = data.checkIn?.location?.name || '';
 
-      const workbook = XLSX.utils.book_new();
+  if (!checkInStr) {
+    return {
+      jamDasar: '-',
+      selisih: 0,
+      skor: 0
+    };
+  }
 
-      for (const userId in excelData) {
-        const records = excelData[userId];
-        if (!Array.isArray(records) || records.length === 0) continue;
+  const checkInMin = parseTimeToMinutes(checkInStr);
+  const jamDasarMin = getJamDasar(checkInStr, role, lokasi);
 
-        const pegawai = records[0];
-        const nama = pegawai.name || "Tanpa Nama";
-        const sheetName = nama.substring(0, 31); // Sheet name max 31 chars
+  if (checkInMin === null || jamDasarMin === null) {
+    return {
+      jamDasar: '-',
+      selisih: 0,
+      skor: 0
+    };
+  }
 
-        const sheetData = records.map((record) => ({
-          Tanggal: record.date,
-          Nama: record.name,
-          Cabang: record.areas,
-          "Jam Masuk": record.checkIn.time,
-          "Jam Keluar": record.checkOut.time,
-          Status: record.status,
-        }));
+  const batasAbsen = jamDasarMin + 60;
+  const selisih = Math.max(0, checkInMin - jamDasarMin);
 
-        const worksheet = XLSX.utils.json_to_sheet(sheetData);
-        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-      }
-
-      XLSX.writeFile(workbook, `Laporan_Presensi_SemuaPegawai.xlsx`);
-    } catch (err) {
-      console.error("❌ Gagal ekspor presensi:", err);
-      alert("Gagal ekspor presensi.");
+  let skor = 0;
+  if (checkInMin <= jamDasarMin) {
+    skor = 100;
+  } else if (checkInMin <= batasAbsen) {
+    if (selisih <= 30) {
+      skor = 100 - selisih;
+    } else {
+      skor = Math.max(0, 70 - (selisih - 30) * 2);
     }
+  }
+
+  return {
+    jamDasar: minutesToTimeStr(jamDasarMin),
+    selisih,
+    skor
   };
+};
+
+const handleExportPresensiSemuaKaryawan = () => {
+  try {
+    if (!excelData || Object.keys(excelData).length === 0) {
+      alert("Data presensi kosong.");
+      return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+
+    // Step 1: Kelompokkan data berdasarkan areaId dan role
+    const groupedData: Record<
+      string, // `${areaId}_${role}`
+      Record<
+        string, // userId
+        {
+          name: string;
+          records: Record<string, string | number>[];
+          totalSkor: number;
+          totalHari: number;
+        }
+      >
+    > = {};
+
+    for (const userId in excelData) {
+      const userRecords = excelData[userId];
+      if (!Array.isArray(userRecords)) continue;
+
+      for (const record of userRecords) {
+        const jamMasuk = record.checkIn?.time || '-';
+        const role = record.role || 'UnknownRole';
+        const lokasi = record.checkIn?.location?.name ?? '-';
+        const areaId = record.areas || 'UnknownArea';
+        const key = `${areaId}_${role}`;
+
+        const { jamDasar, selisih, skor } = getBatasTelatFromCheckIn({
+          checkIn: {
+            time: jamMasuk,
+            faceVerified: false,
+            location: {
+              name: lokasi,
+              latitude: 0,
+              longitude: 0
+            }
+          },
+          role
+        });
+
+        if (!groupedData[key]) {
+          groupedData[key] = {};
+        }
+
+        if (!groupedData[key][userId]) {
+          groupedData[key][userId] = {
+            name: record.name || '-',
+            records: [],
+            totalSkor: 0,
+            totalHari: 0
+          };
+        }
+
+        const userData = groupedData[key][userId];
+
+        userData.records.push({
+          No: userData.records.length + 1,
+          Nama: userData.name,
+          "Jam Masuk": jamMasuk,
+          Role: role,
+          Lokasi: lokasi,
+          "Selisih (mnt)": selisih,
+          Skor: skor
+        });
+
+        userData.totalSkor += skor;
+        userData.totalHari++;
+      }
+    }
+
+    // Step 2: Buat sheet untuk tiap kombinasi areaId + role
+    for (const key in groupedData) {
+      const sheetRecords: Record<string, string | number>[] = [];
+
+      // Ambil semua pegawai dalam satu kombinasi sheet
+      const userList = Object.values(groupedData[key])
+        .map((user) => {
+          const rataRata = user.totalHari > 0 ? user.totalSkor / user.totalHari : 0;
+          return { ...user, rataRata };
+        })
+        // Urutkan berdasarkan rata-rata descending
+        .sort((a, b) => b.rataRata - a.rataRata);
+
+      // Susun sheet berdasarkan urutan tersebut
+      for (const user of userList) {
+        sheetRecords.push(...user.records);
+
+        sheetRecords.push(
+          { No: '', Nama: '', "Jam Masuk": 'Total Skor', Role: '', Lokasi: '', "Selisih (mnt)": '', Skor: user.totalSkor },
+          { No: '', Nama: '', "Jam Masuk": 'Total Hari', Role: '', Lokasi: '', "Selisih (mnt)": '', Skor: user.totalHari },
+          { No: '', Nama: '', "Jam Masuk": 'Tingkat Disiplin (%)', Role: '', Lokasi: '', "Selisih (mnt)": '', Skor: user.rataRata.toFixed(2) },
+          { No: '', Nama: '', "Jam Masuk": '', Role: '', Lokasi: '', "Selisih (mnt)": '', Skor: '' }
+        );
+      }
+
+            // Tambahkan baris pemisah kosong dulu (opsional)
+      // Tambahkan baris kosong pemisah
+      sheetRecords.push({
+        No: '', Nama: '', "Jam Masuk": '', Role: '', Lokasi: '', "Jam Dasar": '', "Selisih (mnt)": '', Skor: ''
+      });
+
+      // Waktu sekarang pakai Date bawaan
+      const now = new Date().toLocaleString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      // Tambahkan footer cetakan
+      sheetRecords.push({
+        No: '', Nama: '', "Jam Masuk": `Dicetak dari sistem pada ${now}`, Role: '', Lokasi: '',  "Selisih (mnt)": '', Skor: ''
+      });
+
+      const sheetName = key.substring(0, 31);
+      const worksheet = XLSX.utils.json_to_sheet(sheetRecords);
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    }
+
+    XLSX.writeFile(workbook, `Laporan_Presensi_PerArea_PerRole.xlsx`);
+  } catch (err) {
+    console.error("❌ Gagal ekspor presensi:", err);
+    alert("Gagal ekspor presensi.");
+  }
+};
 
   return (
     <>
@@ -831,23 +1024,25 @@ const ReportTable = () => {
               className='is-full sm:is-auto'
             />
             <Button
-              color='primary'
-              variant='tonal'
+              color="primary"
+              variant="tonal"
               onClick={handleExportPresensiSemuaKaryawan}
-              startIcon={<i className='tabler-upload' />}
-              className='is-full sm:is-auto'
+              startIcon={<i className="tabler-upload" />}
+              className="is-full sm:is-auto"
             >
-              Expor Laporan Presensi
+              Ekspor Laporan Presensi
             </Button>
+
             <Button
-              color='primary'
-              variant='tonal'
+              color="primary"
+              variant="tonal"
               onClick={handleDownloadSemuaSlipGaji}
-              startIcon={<i className='tabler-upload' />}
-              className='is-full sm:is-auto'
+              startIcon={<i className="tabler-upload" />}
+              className="is-full sm:is-auto"
             >
-              Expor Slip Gaji
+              Ekspor Slip Gaji
             </Button>
+
           </div>
         </div>
         <div className='overflow-x-auto'>
