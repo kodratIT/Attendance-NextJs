@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { getSession } from 'next-auth/react'
 import CircularProgress from '@mui/material/CircularProgress'
 import type { AttendanceRowType } from '@/types/attendanceRowTypes'
-import AttendanceHistory from '@views/attendance'
+import AttendanceDashboard from '@views/attendance/AttendanceDashboard'
 import axios from 'axios'
 
 const Loading = () => (
@@ -75,7 +75,7 @@ const AttendanceApp = () => {
   }, [])
 
   if (loading) return <Loading />
-  return <AttendanceHistory tableData={data} />
+  return <AttendanceDashboard tableData={data} />
 }
 
 const AttendancePage = () => {

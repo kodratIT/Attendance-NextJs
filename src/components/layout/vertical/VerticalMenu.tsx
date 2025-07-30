@@ -151,6 +151,14 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
             </MenuItem>
           </MenuSection>
         )}
+ {isSuperAdmin && (
+          <MenuSection label='Changelog'>
+            <MenuItem href='/changelog' icon={<i className='tabler-report' />}>
+              Changelog
+            </MenuItem>
+          </MenuSection>
+        )}
+         
       </Menu>
     </ScrollWrapper>
   )

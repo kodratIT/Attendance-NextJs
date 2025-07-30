@@ -49,6 +49,11 @@ import { getSession } from 'next-auth/react'
 import TableFilters from './TableFilters'
 import OptionMenu from '@core/components/option-menu'
 import TablePaginationComponent from '@components/TablePaginationComponent'
+import AdvancedFilter from '@/components/filters/AdvancedFilter';
+import InsightsDashboard from '@/components/insights/InsightsDashboard';
+import RealTimeChart from '@/components/charts/RealTimeChart';
+import HeatMap from '@/components/charts/HeatMap';
+import SavedFilters from '@/components/attendance/SavedFilters';
 import CustomTextField from '@core/components/mui/TextField'
 import CustomAvatar from '@core/components/mui/Avatar'
 
@@ -502,25 +507,22 @@ if (role?.toLowerCase() === 'admin') {
   return (
     <>
       <Card>
-        {/* <TableFilters setLoading={setLoading} setData={setFilteredData} tableData={tableData} /> */}
-        
         <div className='flex justify-between flex-col items-start md:flex-row md:items-center p-6 border-bs gap-4'>
-        <div className="flex items-center gap-2">
-
-          <CustomTextField
-            select
-            value={table.getState().pagination.pageSize}
-            onChange={e => table.setPageSize(Number(e.target.value))}
-            className='is-[70px]'
-          >
-            <MenuItem value='10'>10</MenuItem>
-            <MenuItem value='25'>25</MenuItem>
-            <MenuItem value='50'>50</MenuItem>
-          </CustomTextField>
-          {/* Tombol Refresh dengan Loading */}
-          <IconButton onClick={fetchData} disabled={loading}>
-            {loading ? <CircularProgress size={24} /> : <i className="tabler-refresh text-blue-500" />}
-          </IconButton>
+          <div className="flex items-center gap-2">
+            <CustomTextField
+              select
+              value={table.getState().pagination.pageSize}
+              onChange={e => table.setPageSize(Number(e.target.value))}
+              className='is-[70px]'
+            >
+              <MenuItem value='10'>10</MenuItem>
+              <MenuItem value='25'>25</MenuItem>
+              <MenuItem value='50'>50</MenuItem>
+            </CustomTextField>
+            {/* Tombol Refresh dengan Loading */}
+            <IconButton onClick={fetchData} disabled={loading}>
+              {loading ? <CircularProgress size={24} /> : <i className="tabler-refresh text-blue-500" />}
+            </IconButton>
           </div>
           <div className='flex flex-col sm:flex-row is-full sm:is-auto items-start sm:items-center gap-4'>
             <DebouncedInput

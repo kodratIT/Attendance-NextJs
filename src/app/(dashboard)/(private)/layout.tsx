@@ -20,6 +20,7 @@ import HorizontalFooter from '@components/layout/horizontal/Footer'
 import Customizer from '@core/components/customizer'
 import ScrollToTop from '@core/components/scroll-to-top'
 import AuthGuard from '@/hocs/AuthGuard'
+import { NotificationProvider } from '@/components/notifications/NotificationProvider'
 
 // Config Imports
 import { i18n } from '@configs/i18n'
@@ -37,8 +38,9 @@ const Layout = async ({ children, params }: ChildrenType & { params: { lang: Loc
 
   return (
     <Providers direction={direction}>
-      <AuthGuard locale={"en"}>
-        <LayoutWrapper
+      <NotificationProvider>
+        <AuthGuard locale={"en"}>
+          <LayoutWrapper
           systemMode={systemMode}
           verticalLayout={
             <VerticalLayout
@@ -63,8 +65,9 @@ const Layout = async ({ children, params }: ChildrenType & { params: { lang: Loc
             <i className='tabler-arrow-up' />
           </Button>
         </ScrollToTop>
-        <Customizer dir={direction} />
-      </AuthGuard>
+          <Customizer dir={direction} />
+        </AuthGuard>
+      </NotificationProvider>
     </Providers>
   )
 }

@@ -10,6 +10,7 @@ export type AttendanceRowType = {
     checkIn: {
       time: string;
       faceVerified: boolean;
+      imageUrl?: string; // URL foto saat check-in
       location: {
         latitude: number;
         longitude: number;
@@ -19,6 +20,7 @@ export type AttendanceRowType = {
     checkOut: {
       time: string;
       faceVerified: boolean;
+      imageUrl?: string; // URL foto saat check-out
       location: {
         latitude: number;
         longitude: number;

@@ -1,182 +1,638 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { getSession } from 'next-auth/react'
-import type { AttendanceRowType } from '@/types/attendanceRowTypes'
-import AttendanceHistory from '@views/dashboard/RealtimeTable'
-import CircularProgress from '@mui/material/CircularProgress'
-import axios from 'axios'
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { getSession } from 'next-auth/react';
+import { useNotification } from '@/components/notifications/NotificationProvider';
+import type { AttendanceRowType } from '@/types/attendanceRowTypes';
+import type { AreaType } from '@/types/areaTypes';
+import AttendanceChart from '@views/dashboard/AttendanceChart';
+import DepartmentChart from '@views/dashboard/DepartmentChart';
+import EnhancedKPICard from '@views/dashboard/EnhancedKPICard';
+import TimeInsights from '@views/dashboard/TimeInsights';
+import CircularProgress from '@mui/material/CircularProgress';
+import axios from 'axios';
 
-import Grid from '@mui/material/Grid'
-import CardStatVertical from '@/components/card-statistics/Vertical'
+import Grid from '@mui/material/Grid';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import CardHeader from '@mui/material/CardHeader';
+import Typography from '@mui/material/Typography';
+import Chip from '@mui/material/Chip';
+import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import Skeleton from '@mui/material/Skeleton';
+import MenuItem from '@mui/material/MenuItem';
+import CustomTextField from '@core/components/mui/TextField';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
+import Avatar from '@mui/material/Avatar';
+import Divider from '@mui/material/Divider';
+import EmployeeDetailModal from '@/components/modals/EmployeeDetailModal';
+import { addSamplePhotos } from '@/utils/samplePhotoData';
+import TrendAnalysisChart from '@/components/charts/TrendAnalysisChart';
+import PredictiveAnalytics from '@/components/analytics/PredictiveAnalytics';
+import InsightsDashboard from '@/components/insights/InsightsDashboard';
 
 const Loading = () => (
   <div className="flex justify-center items-center min-h-[200px]">
     <CircularProgress />
   </div>
-)
+);
 
-const AttendancePage = () => {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<AttendanceRowType[]>([])
-  const [employeeCount, setEmployeeCount] = useState<number>(0)
-  const [sessionUser, setSessionUser] = useState<any>(null)
-  const [countLate, setCountLate] = useState(0)
-  const [countPresent, setCountPresent] = useState(0)
-
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const session = await getSession()
-        const role = session?.user?.role?.name
-        const userAreaIds: string[] = Array.isArray(session?.user?.areas) ? session.user.areas : []
-
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL
-        if (!apiUrl) throw new Error('❌ NEXT_PUBLIC_API_URL not set')
-
-        // Format tanggal WIB (today)
-        const now = new Date()
-        now.setHours(now.getHours() + 7)
-        const fromDate = now.toISOString().slice(0, 10)
-
-        // Ambil data absensi
-        const attendanceRes = await axios.get(`${apiUrl}/api/attendance?fromDate=${fromDate}&toDate=${fromDate}`, {
-          headers: {
-            'Cache-Control': 'no-store',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-          },
-          timeout: 10000,
-        })
-
-        let attendanceData: AttendanceRowType[] = attendanceRes.data || []
-
-
-
-        if (role === 'Admin') {
-          attendanceData = attendanceData.filter((row: AttendanceRowType) => {
-            return typeof row?.areaId === 'string' && userAreaIds.includes(row.areaId)
-          })
-        }
-
-        // Hitung present dan late
-        let late = 0
-        let present = 0
-
-        attendanceData.forEach(item => {
-          if (item.status === 'present') {
-            present += 1
-          } else if (item.status === 'late') {
-            late += 1
-          }
-        })
-
-        setCountLate(late)
-        setCountPresent(present)
-
-        setData(attendanceData)
-
-        setSessionUser(session?.user || null) 
-
-        // Ambil data user
-        const usersRes = await axios.get(`${apiUrl}/api/users`)
-        let users = usersRes.data || []
-
-        if (role === 'Admin') {
-          users = users.filter((user: any) =>
-            Array.isArray(user.areas) &&
-            user.areas.some((area: any) => userAreaIds.includes(area.id))
-          )
-        }
-
-        setEmployeeCount(users.length)
-      } catch (error: any) {
-        console.error('❌ Error:', error.message || error)
-        setData([])
-        setEmployeeCount(0)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
-  if (loading) return <Loading />
-
-  return (
-    <Grid container spacing={6}>
-      {/* Total Karyawan */}
-      <Grid item xs={12} sm={3} md={3} lg={3}>
-        <CardStatVertical
-          title='Jumlah Karyawan'
-          subtitle='Total dalam database'
-          stats={`${employeeCount}`}
-          avatarColor='info'
-          avatarIcon='tabler-users'
-          avatarSkin='light'
-          avatarSize={44}
-          avatarIconSize={28}
-          chipText='Aktif'
-          chipColor='success'
-        />
+const LoadingSkeleton = () => (
+  <Grid container spacing={6}>
+    {Array.from({ length: 4 }).map((_, index) => (
+      <Grid item xs={12} sm={6} md={3} key={index}>
+        <Card>
+          <CardContent>
+            <Skeleton variant="text" height={24} />
+            <Skeleton variant="text" height={40} />
+            <Skeleton variant="rectangular" height={60} />
+          </CardContent>
+        </Card>
       </Grid>
+    ))}
+  </Grid>
+);
 
-      {/* Telat */}
-      <Grid item xs={12} sm={3} md={3} lg={3}>
-        <CardStatVertical
-          title='Telat'
-          subtitle='Kedatangan tidak tepat waktu'
-          stats={`${countLate}`}
-          avatarColor='warning'
-          avatarIcon='tabler-clock'
-          avatarSkin='light'
-          avatarSize={44}
-          avatarIconSize={28}
-          chipText='Hari Ini'
-          chipColor='warning'
-        />
-      </Grid>
-
-      {/* Tepat Waktu */}
-      <Grid item xs={12} sm={3} md={3} lg={3}>
-        <CardStatVertical
-          title='Tepat Waktu'
-          subtitle='Kedatangan tepat waktu'
-          stats={`${countPresent}`}
-          avatarColor='success'
-          avatarIcon='tabler-check'
-          avatarSkin='light'
-          avatarSize={44}
-          avatarIconSize={28}
-          chipText='Hari Ini'
-          chipColor='success'
-        />
-      </Grid>
-
-      {/* Tidak Hadir */}
-      <Grid item xs={12} sm={3} md={3} lg={3}>
-        <CardStatVertical
-          title='Tidak Hadir'
-          subtitle='Tidak melakukan cek-in'
-          stats={`${data.filter(emp => emp.status === 'absent').length}`}
-          avatarColor='error'
-          avatarIcon='tabler-x'
-          avatarSkin='light'
-          avatarSize={44}
-          avatarIconSize={28}
-          chipText='Hari Ini'
-          chipColor='error'
-        />
-      </Grid>
-
-      {/* Tabel Absensi */}
-      <Grid item xs={12}>
-        <AttendanceHistory tableData={data} />
-      </Grid>
-    </Grid>
-  )
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
 }
 
-export default AttendancePage
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`dashboard-tabpanel-${index}`}
+      aria-labelledby={`dashboard-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ p: 0 }}>{children}</Box>}
+    </div>
+  );
+}
+
+// Enhanced Attendance History Component with Area Filter
+const AttendanceHistoryWithFilter = ({ attendanceData, areaData, loading }: { attendanceData: AttendanceRowType[], areaData: AreaType[], loading: boolean }) => {
+  const [filteredData, setFilteredData] = useState<AttendanceRowType[]>(attendanceData);
+  const [selectedArea, setSelectedArea] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedEmployee, setSelectedEmployee] = useState<AttendanceRowType | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // Set areas for filter
+  const uniqueAreas = useMemo(() => {
+    return areaData.map((area: AreaType) => area.name);
+  }, [areaData]);
+
+  // Filter data based on selected filters
+  useEffect(() => {
+    let filtered = attendanceData;
+    
+    if (selectedArea !== 'all') {
+      filtered = filtered.filter(item => item.areas === selectedArea);
+    }
+    
+    if (selectedStatus !== 'all') {
+      filtered = filtered.filter(item => item.status.toLowerCase() === selectedStatus.toLowerCase());
+    }
+    
+    setFilteredData(filtered);
+  }, [attendanceData, selectedArea, selectedStatus]);
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'present': return 'success';
+      case 'late': return 'warning';
+      case 'absent': return 'error';
+      default: return 'default';
+    }
+  };
+
+  const formatTimeAgo = (dateStr: string) => {
+    const now = new Date();
+    const date = new Date(dateStr);
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Baru saja';
+    if (diffInMinutes < 60) return `${diffInMinutes} menit lalu`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} jam lalu`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays} hari lalu`;
+  };
+
+  const handleEmployeeClick = (employee: AttendanceRowType) => {
+    setSelectedEmployee(employee);
+    setModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setSelectedEmployee(null);
+  };
+
+  return (
+    <Card sx={{ height: '500px', display: 'flex', flexDirection: 'column' }}>
+      <CardHeader
+        title="Riwayat Absensi Hari Ini"
+        subheader={`Total ${filteredData.length} dari ${attendanceData.length} record`}
+        action={
+          <Box display="flex" gap={2}>
+            <CustomTextField
+              select
+              size="small"
+              value={selectedArea}
+              onChange={(e) => setSelectedArea(e.target.value)}
+              sx={{ minWidth: 120 }}
+            >
+              <MenuItem value="all">Semua Area</MenuItem>
+              {uniqueAreas.map((area) => (
+                <MenuItem key={area} value={area}>{area}</MenuItem>
+              ))}
+            </CustomTextField>
+            <CustomTextField
+              select
+              size="small"
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              sx={{ minWidth: 100 }}
+            >
+              <MenuItem value="all">Semua Status</MenuItem>
+              <MenuItem value="present">Hadir</MenuItem>
+              <MenuItem value="late">Terlambat</MenuItem>
+              <MenuItem value="absent">Tidak Hadir</MenuItem>
+            </CustomTextField>
+          </Box>
+        }
+      />
+      <CardContent sx={{ flexGrow: 1, overflow: 'auto', pt: 0 }}>
+        {loading ? (
+          <Box display="flex" justifyContent="center" p={4}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <List disablePadding>
+            {filteredData.length === 0 ? (
+              <ListItem>
+                <ListItemText 
+                  primary="Tidak ada data" 
+                  secondary="Tidak ada record absensi yang sesuai dengan filter"
+                />
+              </ListItem>
+            ) : (
+              filteredData.slice(0, 10).map((item, index) => (
+                <Box key={`${item.userId}-${item.date}`}>
+                  <ListItem 
+                    alignItems="flex-start" 
+                    sx={{ 
+                      px: 0, 
+                      cursor: 'pointer',
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                        borderRadius: 1
+                      }
+                    }}
+                    onClick={() => handleEmployeeClick(item)}
+                  >
+                    <ListItemAvatar>
+                      <Avatar 
+                        src={item.avatar}
+                        sx={{ 
+                          bgcolor: `${getStatusColor(item.status)}.light`,
+                          color: `${getStatusColor(item.status)}.main`,
+                        }}
+                      >
+                        {item.name.charAt(0)}
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={
+                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                          <Typography variant="body2" fontWeight="medium">
+                            {item.name}
+                          </Typography>
+                          <Chip 
+                            label={item.status}
+                            color={getStatusColor(item.status) as any}
+                            size="small"
+                          />
+                        </Box>
+                      }
+                      secondary={
+                        <Box>
+                          <Typography variant="body2" color="text.primary">
+                            Check-in: {item.checkIn.time} 
+                            {item.checkIn.imageUrl && (
+                              <i className="tabler-camera" style={{ fontSize: '0.75rem', marginLeft: '4px', color: '#28a745' }} title="Foto check-in tersedia" />
+                            )}
+                            {' • '}
+                            Check-out: {item.checkOut.time}
+                            {item.checkOut.imageUrl && (
+                              <i className="tabler-camera" style={{ fontSize: '0.75rem', marginLeft: '4px', color: '#dc3545' }} title="Foto check-out tersedia" />
+                            )}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            <i className="tabler-map-pin" style={{ fontSize: '0.75rem', marginRight: '4px' }} />
+                            {item.areas} • {item.shifts}
+                            {(item.checkIn.imageUrl || item.checkOut.imageUrl) && (
+                              <span style={{ marginLeft: '8px', color: '#1976d2' }}>
+                                <i className="tabler-photo" style={{ fontSize: '0.75rem', marginRight: '2px' }} />
+                                Foto tersimpan
+                              </span>
+                            )}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                  {index < filteredData.length - 1 && <Divider variant="inset" component="li" />}
+                </Box>
+              ))
+            )}
+          </List>
+        )}
+      </CardContent>
+      
+      {/* Employee Detail Modal */}
+      <EmployeeDetailModal 
+        open={modalOpen}
+        onClose={handleCloseModal}
+        employee={selectedEmployee}
+      />
+    </Card>
+  );
+};
+
+const AttendancePage = () => {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<AttendanceRowType[]>([]);
+  const [areaData, setAreaData] = useState<AreaType[]>([]);
+  const [employeeCount, setEmployeeCount] = useState<number>(0);
+  const [countLate, setCountLate] = useState(0);
+  const [countPresent, setCountPresent] = useState(0);
+  const [countAbsent, setCountAbsent] = useState(0);
+  const [tabValue, setTabValue] = useState(0);
+  const [chartData, setChartData] = useState({
+    attendance: {
+      dates: [] as string[],
+      onTime: [] as number[],
+      late: [] as number[],
+      absent: [] as number[],
+    },
+    department: {
+      areas: [] as string[],
+      counts: [] as number[],
+    }
+  });
+
+  const { showNotification } = useNotification();
+
+  const handleTabChange = useCallback((event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  }, []);
+
+  // Optimized fetch function with caching
+  const fetchDataOptimized = useCallback(async () => {
+    try {
+      setLoading(true);
+      const session = await getSession();
+      if (!session) return;
+
+      const role = session?.user?.role?.name;
+      const userAreaIds: string[] = Array.isArray(session?.user?.areas) ? session.user.areas : [];
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (!apiUrl) throw new Error('❌ NEXT_PUBLIC_API_URL not set');
+
+      // Fetch area data
+      const areasRes = await axios.get(`${apiUrl}/api/areas`);
+      const areaData = areasRes.data?.data || [];
+
+      // Use current date only for better caching
+      const now = new Date();
+      now.setHours(now.getHours() + 7);
+      const fromDate = now.toISOString().slice(0, 10);
+
+      // Parallel requests for better performance
+      const [attendanceRes, usersRes] = await Promise.all([
+        axios.get(`${apiUrl}/api/attendance?fromDate=${fromDate}&toDate=${fromDate}`, {
+          headers: {
+            'Cache-Control': 'max-age=60', // Cache for 1 minute
+          },
+          timeout: 10000,
+        }),
+        axios.get(`${apiUrl}/api/users`, {
+          headers: {
+            'Cache-Control': 'max-age=300', // Cache users for 5 minutes
+          },
+        })
+      ]);
+
+      let attendanceData: AttendanceRowType[] = attendanceRes.data || [];
+      let users = usersRes.data || [];
+
+      // Filter data based on role (optimized)
+      if (role === 'Admin') {
+        attendanceData = attendanceData.filter((row: AttendanceRowType) => {
+          return typeof row?.areaId === 'string' && userAreaIds.includes(row.areaId);
+        });
+        
+        users = users.filter((user: any) =>
+          Array.isArray(user.areas) &&
+          user.areas.some((area: any) => userAreaIds.includes(area.id))
+        );
+      }
+
+      // Optimized counting using reduce
+      const { late, present, absent } = attendanceData.reduce(
+        (acc, item) => {
+          if (item.status === 'present') acc.present += 1;
+          else if (item.status === 'late') acc.late += 1;
+          else if (item.status === 'absent') acc.absent += 1;
+          return acc;
+        },
+        {present: 0, late: 0, absent: 0}
+      );
+
+      setCountLate(late);
+      setCountPresent(present);
+      setCountAbsent(absent);
+      
+      // Add sample photos for testing (remove this in production)
+      const attendanceDataWithPhotos = addSamplePhotos(attendanceData);
+      setData(attendanceDataWithPhotos);
+      
+      setEmployeeCount(users.length);
+      setAreaData(areaData);
+
+      // Generate optimized mock chart data
+      const mockAttendanceData = {
+        dates: ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+        onTime: [present, present-5, present+2, present-1, present+3, present-2, present],
+        late: [late, late+2, late-1, late+1, late-1, late+2, late],
+        absent: [absent, absent+1, absent-1, absent, absent+1, absent-1, absent],
+      };
+
+      // Optimized department data generation
+      const departmentCounts = attendanceData.reduce((acc: { [key: string]: number }, item) => {
+        const areaName = item.areas || 'Unknown';
+        acc[areaName] = (acc[areaName] || 0) + 1;
+        return acc;
+      }, {});
+
+      const mockDepartmentData = {
+        areas: Object.keys(departmentCounts).length > 0 ? Object.keys(departmentCounts) : ['Jakarta', 'Bandung', 'Surabaya'],
+        counts: Object.keys(departmentCounts).length > 0 ? Object.values(departmentCounts) : [present, late, absent],
+      };
+
+      setChartData({
+        attendance: mockAttendanceData,
+        department: mockDepartmentData,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error:', error.message || error);
+      setData([]);
+      setEmployeeCount(0);
+      showNotification('Error loading data', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showNotification]);
+
+  useEffect(() => {
+    fetchDataOptimized();
+    
+    // Setup auto-refresh every 1 minute
+    const interval = setInterval(() => {
+      fetchDataOptimized();
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [fetchDataOptimized]);
+
+  // Memoized statistics calculation
+  const statistics = useMemo(() => {
+    const totalEmployees = employeeCount;
+    const attendanceRate = totalEmployees > 0 ? ((countPresent + countLate) / totalEmployees * 100).toFixed(1) : '0';
+    const lateRate = totalEmployees > 0 ? (countLate / totalEmployees * 100).toFixed(1) : '0';
+    
+    return {
+      totalEmployees,
+      attendanceRate,
+      lateRate,
+      presentCount: countPresent,
+      lateCount: countLate,
+      absentCount: countAbsent
+    };
+  }, [employeeCount, countPresent, countLate, countAbsent]);
+
+  if (loading) return <LoadingSkeleton />;
+
+  return (
+    <Box sx={{ width: '100%' }}>
+      {/* Modern Header with Statistics */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3, borderRadius: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography variant="h4" fontWeight="bold" gutterBottom>
+              Dashboard Absensi
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Pantau kehadiran karyawan secara real-time
+            </Typography>
+          </Box>
+          <Tooltip title="Refresh Data">
+            <IconButton 
+              onClick={fetchDataOptimized} 
+              disabled={loading}
+              sx={{ 
+                bgcolor: 'primary.light', 
+                color: 'primary.main',
+                '&:hover': { bgcolor: 'primary.main', color: 'white' }
+              }}
+            >
+              {loading ? <CircularProgress size={24} /> : <i className="tabler-refresh" />}
+            </IconButton>
+          </Tooltip>
+        </Box>
+        
+        {/* Quick Stats */}
+        <Grid container spacing={3}>
+          <Grid item xs={6} sm={3}>
+            <Box textAlign="center">
+              <Typography variant="h3" fontWeight="bold" color="success.main">
+                {statistics.presentCount}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Hadir
+              </Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Box textAlign="center">
+              <Typography variant="h3" fontWeight="bold" color="warning.main">
+                {statistics.lateCount}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Terlambat
+              </Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Box textAlign="center">
+              <Typography variant="h3" fontWeight="bold" color="error.main">
+                {statistics.absentCount}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Tidak Hadir
+              </Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Box textAlign="center">
+              <Typography variant="h3" fontWeight="bold" color="info.main">
+                {statistics.attendanceRate}%
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Tingkat Kehadiran
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      <Paper elevation={1} sx={{ width: '100%', mb: 2 }}>
+        {/* Tab Navigation */}
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          indicatorColor="primary"
+          textColor="primary"
+          centered
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="Riwayat Absensi" icon={<i className="tabler-history" />} iconPosition="start" />
+          <Tab label="Analytics" icon={<i className="tabler-chart-pie" />} iconPosition="start" />
+          <Tab label="Analytics Treand" icon={<i className="tabler-brain" />} iconPosition="start" />
+           <Tab label="Predictive Analytics" icon={<i className="tabler-chart-bar" />} iconPosition="start" />
+          <Tab label="Insights" icon={<i className="tabler-bulb" />} iconPosition="start" />
+        </Tabs>
+      </Paper>
+
+      {/* Tab Panels */}
+
+      {/* Attendance History Tab */}
+      <TabPanel value={tabValue} index={0}>
+        <Grid container spacing={6}>
+          {/* Enhanced Attendance History with Filters */}
+          <Grid item xs={12}>
+            <AttendanceHistoryWithFilter attendanceData={data} areaData={areaData} loading={loading} />
+          </Grid>
+        </Grid>
+      </TabPanel>
+
+      {/* Analytics Dashboard Tab */}
+      <TabPanel value={tabValue} index={1}>
+        <Box sx={{ p: 2 }}>
+          <InsightsDashboard attendanceData={data} />
+        </Box>
+      </TabPanel>
+
+     
+
+      {/* Analytics Tab */}
+      <TabPanel value={tabValue} index={2}>
+        <Grid container spacing={6}>
+          {/* Trend Analysis Chart */}
+          <Grid item xs={12}>
+            <TrendAnalysisChart period="week" />
+          </Grid>
+          
+          {/* Attendance Chart */}
+          <Grid item xs={12} md={6}>
+            <AttendanceChart data={chartData.attendance} />
+          </Grid>
+          
+          {/* Department Chart */}
+          <Grid item xs={12} md={6}>
+            <DepartmentChart data={chartData.department} />
+          </Grid>
+        </Grid>
+      </TabPanel>
+
+       {/* Predictive Analytics Tab */}
+      <TabPanel value={tabValue} index={3}>
+        <Box sx={{ p: 2 }}>
+          <PredictiveAnalytics data={data} />
+        </Box>
+      </TabPanel>
+
+      {/* Insights Tab */}
+      <TabPanel value={tabValue} index={4}>
+        <Grid container spacing={6}>
+          {/* Time Insights */}
+          <Grid item xs={12} md={6}>
+            <TimeInsights />
+          </Grid>
+
+          {/* Performance Metrics */}
+          <Grid item xs={12} md={6}>
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <EnhancedKPICard
+                  title="Tingkat Kehadiran"
+                  subtitle="Persentase kehadiran hari ini"
+                  currentValue={parseFloat(statistics.attendanceRate)}
+                  previousValue={parseFloat(statistics.attendanceRate) - 5}
+                  target={95}
+                  icon="tabler-users"
+                  color="primary"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <EnhancedKPICard
+                  title="Keterlambatan"
+                  subtitle="Persentase keterlambatan"
+                  currentValue={parseFloat(statistics.lateRate)}
+                  previousValue={parseFloat(statistics.lateRate) + 2}
+                  icon="tabler-clock"
+                  color="warning"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <EnhancedKPICard
+                  title="Total Karyawan"
+                  subtitle="Jumlah karyawan aktif"
+                  currentValue={statistics.totalEmployees}
+                  previousValue={statistics.totalEmployees - 2}
+                  icon="tabler-users"
+                  color="info"
+                />
+              </Grid>
+            </Grid>
+          </Grid>
+        </Grid>
+      </TabPanel>
+
+    </Box>
+  );
+};
+
+export default AttendancePage;
+
