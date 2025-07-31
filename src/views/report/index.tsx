@@ -184,12 +184,8 @@ const calculateScore = (record: AttendanceRowType): number => {
 
 const processAttendanceData = (
   rawData: Record<string, AttendanceRowType[]>
-): (AttendanceRowType & { totalScore: number; totalHari: number; averageScore: number })[] => {
-  const processedData: Record<string, AttendanceRowType & {
-    totalScore: number;
-    totalHari: number;
-    averageScore: number;
-  }> = {};
+): AttendanceRowType[] => {
+  const processedData: Record<string, AttendanceRowType> = {};
 
   Object.values(rawData).flat().forEach((record) => {
     const { userId, earlyLeaveBy = 0, workingHours = 0 } = record;
@@ -214,7 +210,6 @@ const processAttendanceData = (
       processedData[userId].totalHari += 1;
       const rawAverage = processedData[userId].totalScore / processedData[userId].totalHari;
       processedData[userId].averageScore = Math.floor(rawAverage * 100) / 100;
-
     }
   });
 
@@ -323,36 +318,46 @@ const ReportTable = () => {
   const fetchInitialReport = async () => {
     try {
       setLoading(true);
+      console.log("🔄 Fetching initial report data...");
+      
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-
       if (!apiUrl) throw new Error("❌ NEXT_PUBLIC_API_URL belum diatur!");
 
+      // Gunakan local timezone untuk konsistensi
       const today = new Date();
-      today.setHours(today.getHours() + 7); // UTC+7
+      const toDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const fromDate = new Date(toDate.getFullYear(), toDate.getMonth(), 1); // Awal bulan ini
 
-      const fromDate = new Date(today);
-      fromDate.setDate(today.getDate() - 6);
-
-      const formatDate = (date: Date) =>
-        date.getUTCFullYear() +
-        '-' +
-        String(date.getUTCMonth() + 1).padStart(2, '0') +
-        '-' +
-        String(date.getUTCDate()).padStart(2, '0');
-
-      const formattedFromDate = formatDate(fromDate);
-      const formattedToDate = formatDate(today);
+      // Format tanggal untuk API
+      const formattedFromDate = fromDate.toISOString().split('T')[0];
+      const formattedToDate = toDate.toISOString().split('T')[0];
+      
+      console.log(`📅 Initial date range: ${formattedFromDate} to ${formattedToDate}`);
 
       const res = await axios.get(`${apiUrl}/api/report?fromDate=${formattedFromDate}&toDate=${formattedToDate}`);
+      
+      console.log("✅ Initial API response:", res.data);
+      
+      // Cek apakah data kosong
+      if (!res.data || Object.keys(res.data).length === 0) {
+        console.warn("⚠️ No initial data found");
+        setData([]);
+        setFilteredData([]);
+        setExcelData([]);
+        return;
+      }
 
       const processed = processAttendanceData(res.data);
+      console.log("✅ Initial processed data:", processed);
+      
       setData(processed);
-      setFilteredData(processed); // optional, jika awal ingin langsung ditampilkan semua
+      setFilteredData(processed);
       setExcelData(res.data);
     } catch (err) {
       console.error("❌ Gagal fetch data awal:", err);
       setData([]);
       setFilteredData([]);
+      setExcelData([]);
     } finally {
       setLoading(false);
     }

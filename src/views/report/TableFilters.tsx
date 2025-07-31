@@ -107,11 +107,8 @@ const calculateScore = (record: AttendanceRowType): number => {
 
 const processAttendanceData = (
   rawData: Record<string, AttendanceRowType[]>
-): (AttendanceRowType & { totalScore: number; totalHari: number })[] => {
-  const processedData: Record<string, AttendanceRowType & {
-    totalScore: number;
-    totalHari: number;
-  }> = {};
+): AttendanceRowType[] => {
+  const processedData: Record<string, AttendanceRowType> = {};
 
   Object.values(rawData).flat().forEach((record) => {
     const { userId, earlyLeaveBy = 0, workingHours = 0 } = record;
@@ -134,6 +131,8 @@ const processAttendanceData = (
       processedData[userId].workingHours += workingHours;
       processedData[userId].totalScore += score;
       processedData[userId].totalHari += 1;
+      const rawAverage = processedData[userId].totalScore / processedData[userId].totalHari;
+      processedData[userId].averageScore = Math.floor(rawAverage * 100) / 100;
     }
   });
 
@@ -175,42 +174,95 @@ const TableFilters = ({
     const fetchData = async () => {
       try {
         setLoading(true);
-        const today = new Date();
-        today.setHours(today.getHours() + 7);
-
-        let toDate = new Date(today);
+        console.log(`🔄 Fetching data for dateRange: ${dateRange}`);
+        
+        // Gunakan local timezone untuk konsistensi
+        const now = new Date();
+        let toDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         let fromDate = new Date(toDate);
-        const awalBulanIni = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
-        awalBulanIni.setHours(awalBulanIni.getHours() + 7);
-
-        if (dateRange === "7d") {
-          fromDate.setDate(toDate.getDate() - 6);
-        } else if (dateRange === "14d") {
-          fromDate.setDate(toDate.getDate() - 13);
-        } else if (dateRange === "1m") {
-          fromDate.setMonth(toDate.getMonth() - 1);
-        } else if (dateRange === "last1m") {
-          fromDate = new Date(toDate.getFullYear(), toDate.getMonth() - 1, 1);
-          toDate = new Date(toDate.getFullYear(), toDate.getMonth(), 0);
+        
+        // Hitung rentang tanggal berdasarkan pilihan
+        console.log(`📊 Current date (now): ${now.toLocaleDateString('id-ID')}`);
+        console.log(`📊 Initial toDate: ${toDate.toLocaleDateString('id-ID')}`);
+        
+        switch (dateRange) {
+          case "7d":
+            // 7 hari terakhir (termasuk hari ini)
+            fromDate = new Date(toDate);
+            fromDate.setDate(toDate.getDate() - 6);
+            console.log(`📅 7D: ${fromDate.toLocaleDateString('id-ID')} sampai ${toDate.toLocaleDateString('id-ID')}`);
+            break;
+          case "14d":
+            // 14 hari terakhir (termasuk hari ini)
+            fromDate = new Date(toDate);
+            fromDate.setDate(toDate.getDate() - 13);
+            console.log(`📅 14D: ${fromDate.toLocaleDateString('id-ID')} sampai ${toDate.toLocaleDateString('id-ID')}`);
+            break;
+          case "1m":
+            // BULAN INI: Dari tanggal 1 bulan ini sampai hari ini
+            fromDate = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+            console.log(`📅 BULAN INI: ${fromDate.toLocaleDateString('id-ID')} sampai ${toDate.toLocaleDateString('id-ID')}`);
+            console.log(`📊 Bulan ini = ${toDate.getMonth() + 1}/${toDate.getFullYear()}`);
+            break;
+          case "last1m":
+            // BULAN LALU: Dari tanggal 1 bulan lalu sampai tanggal terakhir bulan lalu
+            const currentMonth = toDate.getMonth();
+            const currentYear = toDate.getFullYear();
+            const lastMonth = currentMonth - 1;
+            const yearForLastMonth = lastMonth < 0 ? currentYear - 1 : currentYear;
+            const adjustedLastMonth = lastMonth < 0 ? 11 : lastMonth;
+            
+            fromDate = new Date(yearForLastMonth, adjustedLastMonth, 1); // Tanggal 1 bulan lalu
+            toDate = new Date(yearForLastMonth, adjustedLastMonth + 1, 0); // Tanggal terakhir bulan lalu
+            
+            console.log(`📅 BULAN LALU: ${fromDate.toLocaleDateString('id-ID')} sampai ${toDate.toLocaleDateString('id-ID')}`);
+            console.log(`📊 Bulan lalu = ${adjustedLastMonth + 1}/${yearForLastMonth}`);
+            console.log(`📊 Current month = ${currentMonth + 1}/${currentYear}`);
+            break;
+          default:
+            // Default 7 hari
+            fromDate = new Date(toDate);
+            fromDate.setDate(toDate.getDate() - 6);
+            console.log(`📅 DEFAULT: ${fromDate.toLocaleDateString('id-ID')} sampai ${toDate.toLocaleDateString('id-ID')}`);
         }
 
-        if (dateRange !== "last1m" && fromDate < awalBulanIni) {
-          fromDate = awalBulanIni;
-        }
-
+        // Format tanggal untuk API (YYYY-MM-DD)
         const formattedFromDate = fromDate.toISOString().split('T')[0];
         const formattedToDate = toDate.toISOString().split('T')[0];
+        
+        console.log(`📅 Date range: ${formattedFromDate} to ${formattedToDate}`);
+
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+        if (!apiUrl) {
+          throw new Error("❌ NEXT_PUBLIC_API_URL tidak ditemukan!");
+        }
 
         const res = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/report?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
+          `${apiUrl}/api/report?fromDate=${formattedFromDate}&toDate=${formattedToDate}`
         );
 
+        console.log(`✅ Raw API response:`, res.data);
+        
+        // Cek apakah data kosong
+        if (!res.data || Object.keys(res.data).length === 0) {
+          console.warn(`⚠️ No data found for date range: ${formattedFromDate} to ${formattedToDate}`);
+          setRawData([]);
+          setExcelData([]);
+          setData([]);
+          return;
+        }
+
         const processed = processAttendanceData(res.data);
+        console.log(`✅ Processed data:`, processed);
+        
         setRawData(processed);
         setExcelData(res.data);
         applyFilters(processed);
+        
       } catch (err) {
-        console.error("❌ Gagal ambil data:", err);
+        console.error("❌ Error fetching data:", err);
+        setRawData([]);
+        setExcelData([]);
         setData([]);
       } finally {
         setLoading(false);
