@@ -29,7 +29,7 @@ interface RequestDialogProps {
   setOpen: (open: boolean) => void;
   state?: 'Add' | 'Edit';
   data?: AttendanceRowType;
-  currentUser: UserType;
+  currentUser?: UserType;
   refreshData?: () => void;
 }
 
@@ -40,6 +40,10 @@ const RequestDialog = ({ open, setOpen, currentUser, state, data, refreshData = 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Checkout-only states
+  const [areas, setAreas] = useState<any[]>([]);
+  const [areaId, setAreaId] = useState<string>('');
+  const [checkOutTime, setCheckOutTime] = useState<string>('');
   const [keterangan, setKeterangan] = useState('');
 
   // Error states
@@ -108,10 +112,21 @@ useEffect(() => {
 
   fetchUsers()
 
+  // Fetch areas for checkout selection
+  const fetchAreas = async () => {
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+      const res = await axios.get(`${API_URL}/api/areas`)
+      const list = Array.isArray(res.data?.data) ? res.data.data : []
+      setAreas(list)
+      // default area from row data if available
+      if (!areaId && (data as any)?.areaId) setAreaId((data as any).areaId)
+    } catch (e) {
+      console.error('Failed to fetch areas:', e)
+    }
+  }
+  fetchAreas()
 
-  console.log(users);
-
-  
 }, [open])
 
 
@@ -161,9 +176,10 @@ useEffect(() => {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-      // Create new attendance request
       await axios.put(`${API_URL}/api/attendance`, {
         data: AttendanceData,
+        checkOutTime,
+        areaId
       });
 
       refreshData();
@@ -179,19 +195,41 @@ useEffect(() => {
     <Dialog fullWidth open={open} onClose={() => setOpen(false)}>
       {state === 'Edit' ? (
         <>
-          <DialogTitle>{state === 'Edit' ? 'Permintaan Checkout Kehadiran' : 'Permintaan Checkout Kehadiran'}</DialogTitle>
-          <DialogContent className="text-center">
-          <Typography variant="body1" color="error">
-            Apakah Anda yakin ingin melakukan checkout kehadiran?
-          </Typography>
+          <DialogTitle>Checkout Kehadiran</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Pilih jam checkout dan area checkout.
+            </Typography>
+            <TextField
+              fullWidth
+              label="Jam Checkout"
+              type="time"
+              value={checkOutTime}
+              onChange={e => setCheckOutTime(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              margin="normal"
+            />
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="checkout-area-label">Area</InputLabel>
+              <Select
+                labelId="checkout-area-label"
+                label="Area"
+                value={areaId}
+                onChange={e => setAreaId(String(e.target.value))}
+              >
+                {areas.map(a => (
+                  <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </DialogContent>
-          <DialogActions className="flex justify-center pbs-4 sm:pli-16">
-          <Button variant="contained" color="primary" onClick={handleSend} disabled={saving}>
-            {saving ? <CircularProgress color="inherit" size={20} /> : 'Konfirmasi Checkout'}
-          </Button>
-          <Button onClick={() => setOpen(false)} variant="outlined" color="secondary" disabled={saving}>
-            Batal
-          </Button>
+          <DialogActions className="flex justify-end pbs-4 sm:pli-6 gap-2">
+            <Button onClick={() => setOpen(false)} variant="outlined" color="secondary" disabled={saving}>
+              Batal
+            </Button>
+            <Button variant="contained" color="primary" onClick={handleSend} disabled={saving || !areaId || !checkOutTime}>
+              {saving ? <CircularProgress color="inherit" size={20} /> : 'Simpan Checkout'}
+            </Button>
           </DialogActions>
         </>
       ) : (

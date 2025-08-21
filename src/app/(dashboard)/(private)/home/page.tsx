@@ -27,6 +27,7 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Skeleton from '@mui/material/Skeleton';
 import MenuItem from '@mui/material/MenuItem';
+import TablePagination from '@mui/material/TablePagination';
 import CustomTextField from '@core/components/mui/TextField';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -84,11 +85,26 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-// Enhanced Attendance History Component with Area Filter
+// Import tambahan untuk table
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  type ColumnDef,
+} from '@tanstack/react-table';
+import TablePaginationComponent from '@components/TablePaginationComponent';
+import tableStyles from '@core/styles/table.module.css';
+
+// Enhanced Attendance History Component with Table Implementation
 const AttendanceHistoryWithFilter = ({ attendanceData, areaData, loading }: { attendanceData: AttendanceRowType[], areaData: AreaType[], loading: boolean }) => {
   const [filteredData, setFilteredData] = useState<AttendanceRowType[]>(attendanceData);
   const [selectedArea, setSelectedArea] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [globalFilter, setGlobalFilter] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<AttendanceRowType | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -121,21 +137,6 @@ const AttendanceHistoryWithFilter = ({ attendanceData, areaData, loading }: { at
     }
   };
 
-  const formatTimeAgo = (dateStr: string) => {
-    const now = new Date();
-    const date = new Date(dateStr);
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
-    if (diffInMinutes < 1) return 'Baru saja';
-    if (diffInMinutes < 60) return `${diffInMinutes} menit lalu`;
-    
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours} jam lalu`;
-    
-    const diffInDays = Math.floor(diffInHours / 24);
-    return `${diffInDays} hari lalu`;
-  };
-
   const handleEmployeeClick = (employee: AttendanceRowType) => {
     setSelectedEmployee(employee);
     setModalOpen(true);
@@ -146,127 +147,232 @@ const AttendanceHistoryWithFilter = ({ attendanceData, areaData, loading }: { at
     setSelectedEmployee(null);
   };
 
-  return (
-    <Card sx={{ height: '500px', display: 'flex', flexDirection: 'column' }}>
-      <CardHeader
-        title="Riwayat Absensi Hari Ini"
-        subheader={`Total ${filteredData.length} dari ${attendanceData.length} record`}
-        action={
-          <Box display="flex" gap={2}>
-            <CustomTextField
-              select
-              size="small"
-              value={selectedArea}
-              onChange={(e) => setSelectedArea(e.target.value)}
-              sx={{ minWidth: 120 }}
+  // Column Definitions menggunakan createColumnHelper
+  const columnHelper = createColumnHelper<AttendanceRowType>();
+  
+  const columns = useMemo<ColumnDef<AttendanceRowType, any>[]>(
+    () => [
+      columnHelper.accessor('name', {
+        header: 'Nama Karyawan',
+        cell: ({ row }) => (
+          <Box display="flex" alignItems="center" gap={1}>
+            <Avatar 
+              src={row.original.avatar}
+              sx={{ 
+                width: 32,
+                height: 32,
+                bgcolor: `${getStatusColor(row.original.status)}.light`,
+                color: `${getStatusColor(row.original.status)}.main`,
+              }}
             >
-              <MenuItem value="all">Semua Area</MenuItem>
-              {uniqueAreas.map((area) => (
-                <MenuItem key={area} value={area}>{area}</MenuItem>
-              ))}
-            </CustomTextField>
-            <CustomTextField
-              select
-              size="small"
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              sx={{ minWidth: 100 }}
-            >
-              <MenuItem value="all">Semua Status</MenuItem>
-              <MenuItem value="present">Hadir</MenuItem>
-              <MenuItem value="late">Terlambat</MenuItem>
-              <MenuItem value="absent">Tidak Hadir</MenuItem>
-            </CustomTextField>
+              {row.original.name.charAt(0)}
+            </Avatar>
+            <Typography variant="body2" fontWeight="medium">
+              {row.original.name}
+            </Typography>
           </Box>
-        }
-      />
-      <CardContent sx={{ flexGrow: 1, overflow: 'auto', pt: 0 }}>
-        {loading ? (
-          <Box display="flex" justifyContent="center" p={4}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <List disablePadding>
-            {filteredData.length === 0 ? (
-              <ListItem>
-                <ListItemText 
-                  primary="Tidak ada data" 
-                  secondary="Tidak ada record absensi yang sesuai dengan filter"
-                />
-              </ListItem>
-            ) : (
-              filteredData.slice(0, 10).map((item, index) => (
-                <Box key={`${item.userId}-${item.date}`}>
-                  <ListItem 
-                    alignItems="flex-start" 
-                    sx={{ 
-                      px: 0, 
-                      cursor: 'pointer',
-                      '&:hover': {
-                        backgroundColor: 'action.hover',
-                        borderRadius: 1
-                      }
-                    }}
-                    onClick={() => handleEmployeeClick(item)}
-                  >
-                    <ListItemAvatar>
-                      <Avatar 
-                        src={item.avatar}
-                        sx={{ 
-                          bgcolor: `${getStatusColor(item.status)}.light`,
-                          color: `${getStatusColor(item.status)}.main`,
-                        }}
-                      >
-                        {item.name.charAt(0)}
-                      </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={
-                        <Box display="flex" justifyContent="space-between" alignItems="center">
-                          <Typography variant="body2" fontWeight="medium">
-                            {item.name}
-                          </Typography>
-                          <Chip 
-                            label={item.status}
-                            color={getStatusColor(item.status) as any}
-                            size="small"
-                          />
-                        </Box>
-                      }
-                      secondary={
-                        <Box>
-                          <Typography variant="body2" color="text.primary">
-                            Check-in: {item.checkIn.time} 
-                            {item.checkIn.imageUrl && (
-                              <i className="tabler-camera" style={{ fontSize: '0.75rem', marginLeft: '4px', color: '#28a745' }} title="Foto check-in tersedia" />
-                            )}
-                            {' • '}
-                            Check-out: {item.checkOut.time}
-                            {item.checkOut.imageUrl && (
-                              <i className="tabler-camera" style={{ fontSize: '0.75rem', marginLeft: '4px', color: '#dc3545' }} title="Foto check-out tersedia" />
-                            )}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            <i className="tabler-map-pin" style={{ fontSize: '0.75rem', marginRight: '4px' }} />
-                            {item.areas} • {item.shifts}
-                            {(item.checkIn.imageUrl || item.checkOut.imageUrl) && (
-                              <span style={{ marginLeft: '8px', color: '#1976d2' }}>
-                                <i className="tabler-photo" style={{ fontSize: '0.75rem', marginRight: '2px' }} />
-                                Foto tersimpan
-                              </span>
-                            )}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                  </ListItem>
-                  {index < filteredData.length - 1 && <Divider variant="inset" component="li" />}
-                </Box>
-              ))
+        ),
+      }),
+      columnHelper.accessor('status', {
+        header: 'Status',
+        cell: ({ row }) => (
+          <Chip 
+            label={row.original.status}
+            color={getStatusColor(row.original.status) as any}
+            size="small"
+            variant="tonal"
+          />
+        ),
+      }),
+      columnHelper.accessor('checkIn.time', {
+        header: 'Check In',
+        cell: ({ row }) => (
+          <Box display="flex" alignItems="center" gap={0.5}>
+            <Typography variant="body2">
+              {row.original.checkIn?.time || '-'}
+            </Typography>
+            {row.original.checkIn?.imageUrl && (
+              <i className="tabler-camera" style={{ fontSize: '0.875rem', color: '#28a745' }} title="Foto check-in tersedia" />
             )}
-          </List>
-        )}
+          </Box>
+        ),
+      }),
+      columnHelper.accessor('checkOut.time', {
+        header: 'Check Out',
+        cell: ({ row }) => (
+          <Box display="flex" alignItems="center" gap={0.5}>
+            <Typography variant="body2">
+              {row.original.checkOut?.time || '-'}
+            </Typography>
+            {row.original.checkOut?.imageUrl && (
+              <i className="tabler-camera" style={{ fontSize: '0.875rem', color: '#dc3545' }} title="Foto check-out tersedia" />
+            )}
+          </Box>
+        ),
+      }),
+      columnHelper.accessor('areas', {
+        header: 'Area',
+        cell: ({ row }) => (
+          <Typography variant="body2">
+            {row.original.areas}
+          </Typography>
+        ),
+      }),
+      columnHelper.accessor('shifts', {
+        header: 'Shift',
+        cell: ({ row }) => (
+          <Typography variant="body2">
+            {row.original.shifts}
+          </Typography>
+        ),
+      }),
+      columnHelper.display({
+        id: 'actions',
+        header: 'Aksi',
+        cell: ({ row }) => (
+          <IconButton 
+            size="small"
+            onClick={() => handleEmployeeClick(row.original)}
+          >
+            <i className="tabler-eye" />
+          </IconButton>
+        ),
+      }),
+    ],
+    [getStatusColor]
+  );
+
+  // React Table instance
+  const table = useReactTable({
+    data: filteredData,
+    columns,
+    state: { globalFilter },
+    onGlobalFilterChange: setGlobalFilter,
+    filterFns: {
+      fuzzy: (row, columnId, value) => String(row.getValue(columnId))
+        .toLowerCase()
+        .includes(String(value).toLowerCase())
+    },
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+  });
+
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-4 sm:flex-row items-start sm:items-center justify-between flex-wrap">
+        <div className="flex items-center gap-2">
+          <Typography>Show</Typography>
+          <CustomTextField
+            select
+            value={table.getState().pagination.pageSize}
+            onChange={(e) => table.setPageSize(Number(e.target.value))}
+            className="is-[70px]"
+          >
+            <MenuItem value="10">10</MenuItem>
+            <MenuItem value="25">25</MenuItem>
+            <MenuItem value="50">50</MenuItem>
+          </CustomTextField>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <CustomTextField
+            value={globalFilter ?? ''}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            placeholder="Cari karyawan..."
+            className="is-full sm:is-auto"
+            size="small"
+          />
+          <CustomTextField
+            select
+            size="small"
+            value={selectedArea}
+            onChange={(e) => setSelectedArea(e.target.value)}
+            sx={{ minWidth: 120 }}
+          >
+            <MenuItem value="all">Semua Area</MenuItem>
+            {uniqueAreas.map((area) => (
+              <MenuItem key={area} value={area}>{area}</MenuItem>
+            ))}
+          </CustomTextField>
+          <CustomTextField
+            select
+            size="small"
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            sx={{ minWidth: 120 }}
+          >
+            <MenuItem value="all">Semua Status</MenuItem>
+            <MenuItem value="present">Hadir</MenuItem>
+            <MenuItem value="late">Terlambat</MenuItem>
+            <MenuItem value="absent">Tidak Hadir</MenuItem>
+          </CustomTextField>
+        </div>
       </CardContent>
+
+      <div className="overflow-x-auto">
+        <table className={tableStyles.table}>
+          <thead>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <th key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={columns.length} className="text-center py-10">
+                  <CircularProgress />
+                </td>
+              </tr>
+            ) : filteredData.length > 0 ? (
+              table.getRowModel().rows.map((row) => (
+                <tr key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={columns.length} className="text-center py-10">
+                  <Typography color="textSecondary">Tidak ada data absensi</Typography>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      
+      <TablePagination
+        component={() => (
+          <TablePaginationComponent
+            pageIndex={table.getState().pagination.pageIndex}
+            pageSize={table.getState().pagination.pageSize}
+            rowCount={table.getFilteredRowModel().rows.length}
+            onPageChange={(_, pageIndex) => table.setPageIndex(pageIndex)}
+          />
+        )}
+        count={table.getFilteredRowModel().rows.length}
+        rowsPerPage={table.getState().pagination.pageSize}
+        page={table.getState().pagination.pageIndex}
+        onPageChange={(_, page) => table.setPageIndex(page)}
+      />
       
       {/* Employee Detail Modal */}
       <EmployeeDetailModal 

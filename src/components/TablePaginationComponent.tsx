@@ -2,24 +2,28 @@
 import Pagination from '@mui/material/Pagination';
 import Typography from '@mui/material/Typography';
 
-// Third Party Imports
-import type { Table } from '@tanstack/react-table';
-
-interface TablePaginationProps<T> {
-  table: Table<T>;
+// Local Types
+interface TablePaginationProps {
+  pageIndex: number;
+  pageSize: number;
+  rowCount: number;
+  onPageChange: (event: React.ChangeEvent<unknown>, pageIndex: number) => void;
+  onRowsPerPageChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-const TablePaginationComponent = <T,>({ table }: TablePaginationProps<T>) => {
-  // Destructuring pagination state
-  const {
-    pageIndex,
-    pageSize
-  } = table.getState().pagination;
+const TablePaginationComponent = ({
+  pageIndex,
+  pageSize,
+  rowCount,
+  onPageChange,
+}: TablePaginationProps) => {
+  const safePageSize = pageSize > 0 ? pageSize : 10;
+  const totalRows = Math.max(0, rowCount || 0);
+  const totalPages = Math.max(1, Math.ceil(totalRows / safePageSize));
+  const safePageIndex = Math.min(Math.max(0, pageIndex || 0), totalPages - 1);
 
-  const totalRows = table.getFilteredRowModel().rows.length;
-  const totalPages = Math.ceil(totalRows / pageSize);
-  const startRow = totalRows === 0 ? 0 : pageIndex * pageSize + 1;
-  const endRow = Math.min((pageIndex + 1) * pageSize, totalRows);
+  const startRow = totalRows === 0 ? 0 : safePageIndex * safePageSize + 1;
+  const endRow = Math.min((safePageIndex + 1) * safePageSize, totalRows);
 
   return (
     <div className='flex justify-between items-center flex-wrap pli-6 border-bs bs-auto plb-[12.5px] gap-2'>
@@ -31,8 +35,8 @@ const TablePaginationComponent = <T,>({ table }: TablePaginationProps<T>) => {
         color='primary'
         variant='tonal'
         count={totalPages}
-        page={pageIndex + 1}
-        onChange={(_, page) => table.setPageIndex(page - 1)}
+        page={safePageIndex + 1}
+        onChange={(event, page) => onPageChange(event as any, page - 1)}
         showFirstButton
         showLastButton
       />

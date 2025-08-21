@@ -514,7 +514,14 @@ const RealtimeTable = ({ tableData }: { tableData?: AttendanceRowType[] }) => {
           </table>
         </div>
         <TablePagination
-          component={() => <TablePaginationComponent table={table} />}
+component={() => (
+            <TablePaginationComponent
+              pageIndex={table.getState().pagination.pageIndex}
+              pageSize={table.getState().pagination.pageSize}
+              rowCount={table.getFilteredRowModel().rows.length}
+              onPageChange={(_, pageIndex) => table.setPageIndex(pageIndex)}
+            />
+          )}
           count={table.getFilteredRowModel().rows.length}
           rowsPerPage={table.getState().pagination.pageSize}
           page={table.getState().pagination.pageIndex}

@@ -1,7 +1,7 @@
 'use client';
 
 // React Imports
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 // MUI Imports
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -16,6 +16,7 @@ import AlertTitle from '@mui/material/AlertTitle';
 import CustomTextField from '@core/components/mui/TextField';
 import DialogCloseButton from '../DialogCloseButton';
 import type { AttendanceRowType } from '@/types/attendanceTypes';
+import MenuItem from '@mui/material/MenuItem';
 import axios from 'axios';
 
 type AttendanceDialogProps = {
@@ -32,51 +33,67 @@ type AttendanceDialogProps = {
 
 const AddContent = ({ handleClose, refreshData }: { handleClose: () => void; refreshData: () => void }) => {
   const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<{ id: string; name: string }[]>([])
+  const [areas, setAreas] = useState<{ id: string; name: string }[]>([])
+  const [shifts, setShifts] = useState<{ id: string; name: string }[]>([])
+  const [userId, setUserId] = useState('')
+  const [areaId, setAreaId] = useState('')
+  const [shiftId, setShiftId] = useState('')
+  const [date, setDate] = useState('')
+  const [checkInTime, setCheckInTime] = useState('')
 
-  const handleCreate = async () => {
-    setLoading(true);
-    // setMessage('');
-    // setIsError(false);
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-    const date = (document.getElementById('attendance-date') as HTMLInputElement)?.value;
-    const checkInTime = (document.getElementById('attendance-checkin-time') as HTMLInputElement)?.value;
-    const checkOutTime = (document.getElementById('attendance-checkout-time') as HTMLInputElement)?.value;
-    const workingHours = (document.getElementById('attendance-working-hours') as HTMLInputElement)?.value;
+  useEffect(() => {
+    const fetchLists = async () => {
+      try {
+        const [uRes, aRes, sRes] = await Promise.all([
+          axios.get(`${API_URL}/api/users`, { timeout: 10000 }),
+          axios.get(`${API_URL}/api/areas`, { timeout: 10000 }),
+          axios.get(`${API_URL}/api/shifts`, { timeout: 10000 })
+        ])
+        const userOpts = Array.isArray(uRes.data)
+          ? uRes.data.map((x: any) => ({ id: x.id, name: x.name }))
+          : []
+        const areaOpts = Array.isArray(aRes.data?.data)
+          ? aRes.data.data.map((x: any) => ({ id: x.id, name: x.name }))
+          : []
+        const shiftOpts = Array.isArray(sRes.data?.data)
+          ? sRes.data.data.map((x: any) => ({ id: x.id, name: x.name }))
+          : []
+        setUsers(userOpts)
+        setAreas(areaOpts)
+        setShifts(shiftOpts)
+      } catch (e) {
+        console.error('Failed to load users/areas', e)
+      }
+    }
+    fetchLists()
+  }, [])
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const handleCreate = async () => {
+setLoading(true);
 
     try {
-      const response = await axios.post(`${API_URL}/api/attendance`, {
-        date,
-        checkInTime,
-        checkOutTime,
-        workingHours,
-      });
+      if (!userId || !areaId || !shiftId || !date || !checkInTime) {
+        throw new Error('Mohon lengkapi pegawai, area, shift, tanggal, dan jam masuk')
+      }
 
-      const data = response.data;
-      // setMessage(data.message || 'Absensi berhasil.');
-      // setIsError(false);
+      await axios.post(`${API_URL}/api/attendance`, {
+        userId,
+        areaId,
+        shiftId,
+        date,
+        checkInTime
+      });
 
       setTimeout(() => {
         refreshData();
         handleClose();
-      }, 1200);
+      }, 800);
 
     } catch (error: any) {
       console.error('Error submitting request:', error);
-
-      let errMessage = 'Gagal membuat data absensi.';
-
-      if (error?.response?.status === 403) {
-        errMessage = `Absensi gagal karena kamu melakukan absen di luar jam yang diizinkan.
-Silakan absen pada jam shift yang berlaku:
-• Pagi (07:00–08:59)
-• Siang (13:00–14:49)
-• Malam (15:00–17:00)`;
-      }
-
-      // setMessage(errMessage);
-      // setIsError(true);
     } finally {
       setLoading(false);
     }
@@ -86,35 +103,67 @@ return (
   <>
     {/* Alert error/success hanya muncul jika ada message */}
 
-    {/* Form input */}
+{/* Select Pegawai */}
     <CustomTextField
-      id="attendance-date"
-      label="Date"
+      select
+      label="Pegawai"
+      fullWidth
+      margin="normal"
+      value={userId}
+      onChange={(e: any) => setUserId(e.target.value)}
+    >
+      {users.map(u => (
+        <MenuItem key={u.id} value={u.id}>{u.name}</MenuItem>
+      ))}
+    </CustomTextField>
+
+    {/* Select Area */}
+    <CustomTextField
+      select
+      label="Area"
+      fullWidth
+      margin="normal"
+      value={areaId}
+      onChange={(e: any) => setAreaId(e.target.value)}
+    >
+      {areas.map(a => (
+        <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
+      ))}
+    </CustomTextField>
+
+    {/* Select Shift */}
+    <CustomTextField
+      select
+      label="Shift"
+      fullWidth
+      margin="normal"
+      value={shiftId}
+      onChange={(e: any) => setShiftId(e.target.value)}
+    >
+      {shifts.map(s => (
+        <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+      ))}
+    </CustomTextField>
+
+    {/* Tanggal */}
+    <CustomTextField
+      label="Tanggal"
       type="date"
       fullWidth
       margin="normal"
+      value={date}
+      onChange={(e: any) => setDate(e.target.value)}
       InputLabelProps={{ shrink: true }}
     />
+
+    {/* Jam Masuk */}
     <CustomTextField
-      id="attendance-checkin-time"
-      label="Check-In Time"
+      label="Jam Masuk"
       type="time"
       fullWidth
       margin="normal"
-    />
-    <CustomTextField
-      id="attendance-checkout-time"
-      label="Check-Out Time"
-      type="time"
-      fullWidth
-      margin="normal"
-    />
-    <CustomTextField
-      id="attendance-working-hours"
-      label="Working Hours"
-      type="number"
-      fullWidth
-      margin="normal"
+      value={checkInTime}
+      onChange={(e: any) => setCheckInTime(e.target.value)}
     />
 
     <DialogActions>

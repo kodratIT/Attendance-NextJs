@@ -38,7 +38,6 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
   const verticalNavOptions = useVerticalNav()
   const { isBreakpointReached } = useVerticalNav()
   const { transitionDuration } = verticalNavOptions
-  const ScrollWrapper = isBreakpointReached ? 'div' : PerfectScrollbar
 
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,7 +64,7 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 4,
+          padding: 4
         }}
       >
         <CircularProgress size={32} />
@@ -73,95 +72,100 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
     )
   }
 
-  return (
-    <ScrollWrapper
-      {...(isBreakpointReached
-        ? {
-            className: 'bs-full overflow-y-auto overflow-x-hidden',
-            onScroll: container => scrollMenu(container, false)
-          }
-        : {
-            options: { wheelPropagation: false, suppressScrollX: true },
-            onScrollY: container => scrollMenu(container, true)
-          })}
+  const MenuContent = () => (
+    <Menu
+      popoutMenuOffset={{ mainAxis: 23 }}
+      menuItemStyles={menuItemStyles(verticalNavOptions, theme)}
+      renderExpandIcon={({ open }) => <RenderExpandIcon open={open} transitionDuration={transitionDuration} />}
+      renderExpandedMenuItemIcon={{ icon: <i className='tabler-circle text-xs' /> }}
+      menuSectionStyles={menuSectionStyles(verticalNavOptions, theme)}
     >
-      <Menu
-        popoutMenuOffset={{ mainAxis: 23 }}
-        menuItemStyles={menuItemStyles(verticalNavOptions, theme)}
-        renderExpandIcon={({ open }) => (
-          <RenderExpandIcon open={open} transitionDuration={transitionDuration} />
-        )}
-        renderExpandedMenuItemIcon={{ icon: <i className='tabler-circle text-xs' /> }}
-        menuSectionStyles={menuSectionStyles(verticalNavOptions, theme)}
-      >
-        {(isAdmin || isSuperAdmin) && (
-          <MenuItem href='/home' icon={<i className='tabler-dashboard' />}>
-            Beranda
+      {(isAdmin || isSuperAdmin) && (
+        <MenuItem href='/home' icon={<i className='tabler-dashboard' />}>
+          Beranda
+        </MenuItem>
+      )}
+
+      {isSuperAdmin && (
+        <MenuSection label='Manajemen Tindakan'>
+          <MenuItem href='#' icon={<i className='tabler-stethoscope' />}>
+            Tindakan Medis
           </MenuItem>
-        )}
+        </MenuSection>
+      )}
 
-        {isSuperAdmin && (
-          <MenuSection label='Manajemen Tindakan'>
-            <MenuItem href='#' icon={<i className='tabler-stethoscope' />}>
-              Tindakan Medis
-            </MenuItem>
-          </MenuSection>
-        )}
+      {isSuperAdmin && (
+        <MenuSection label='Manajemen Absensi'>
+          <MenuItem href='/attendance' icon={<i className='tabler-smart-home' />}>
+            Presensi
+          </MenuItem>
+          <MenuItem href='/shifts' icon={<i className='tabler-calendar-time' />}>
+            Jadwal Shift
+          </MenuItem>
+          <MenuItem href='/overtime' icon={<i className='tabler-clock-hour-4' />}>
+            Lembur
+          </MenuItem>
+          <MenuItem href='/requests' icon={<i className='tabler-file-text' />}>
+            Permohonan
+          </MenuItem>
+        </MenuSection>
+      )}
 
+      {isSuperAdmin && (
+        <MenuSection label='Geolokasi'>
+          <MenuItem href='/areas' icon={<i className='tabler-chart-area' />}>
+            Wilayah
+          </MenuItem>
+          <MenuItem href='/locations' icon={<i className='tabler-map' />}>
+            Lokasi
+          </MenuItem>
+        </MenuSection>
+      )}
 
-        {isSuperAdmin && (
-          <MenuSection label='Manajemen Absensi'>
-            <MenuItem href='/attendance' icon={<i className='tabler-smart-home' />}>
-              Presensi
-            </MenuItem>
-            <MenuItem href='/shifts' icon={<i className='tabler-calendar-time' />}>
-              Jadwal Shift
-            </MenuItem>
-          </MenuSection>
-        )}
+      {isSuperAdmin && (
+        <MenuSection label='Laporan & Analisis'>
+          <MenuItem href='/report' icon={<i className='tabler-report' />}>
+            Laporan
+          </MenuItem>
+        </MenuSection>
+      )}
 
-        {isSuperAdmin && (
-          <MenuSection label='Geolokasi'>
-            <MenuItem href='/areas' icon={<i className='tabler-chart-area' />}>
-              Wilayah
-            </MenuItem>
-            <MenuItem href='/locations' icon={<i className='tabler-map' />}>
-              Lokasi
-            </MenuItem>
-          </MenuSection>
-        )}
+      {isSuperAdmin && (
+        <MenuSection label='Kontrol Akses'>
+          <SubMenu label='Peran & Izin' icon={<i className='tabler-lock' />}>
+            <MenuItem href='/roles'>Peran</MenuItem>
+            <MenuItem href='/permissions'>Izin</MenuItem>
+          </SubMenu>
+          <MenuItem href='/users' icon={<i className='tabler-users' />}>
+            Pengguna
+          </MenuItem>
+        </MenuSection>
+      )}
 
-        {isSuperAdmin && (
-          <MenuSection label='Laporan & Analisis'>
-            <MenuItem href='/report' icon={<i className='tabler-report' />}>
-              Laporan
-            </MenuItem>
-          </MenuSection>
-        )}
+      {isSuperAdmin && (
+        <MenuSection label='Changelog'>
+          <MenuItem href='/changelog' icon={<i className='tabler-history' />}>
+            Changelog
+          </MenuItem>
+        </MenuSection>
+      )}
+    </Menu>
+  )
 
-
-        {isSuperAdmin && (
-          <MenuSection label='Kontrol Akses'>
-            <SubMenu label='Peran & Izin' icon={<i className='tabler-lock' />}>
-              <MenuItem href='/roles'>Peran</MenuItem>
-              <MenuItem href='/permissions'>Izin</MenuItem>
-            </SubMenu>
-            <MenuItem href='/users' icon={<i className='tabler-users' />}>
-              Pengguna
-            </MenuItem>
-          </MenuSection>
-        )}
- {isSuperAdmin && (
-          <MenuSection label='Changelog'>
-            <MenuItem href='/changelog' icon={<i className='tabler-report' />}>
-              Changelog
-            </MenuItem>
-          </MenuSection>
-        )}
-         
-      </Menu>
-    </ScrollWrapper>
+  return (
+    <>
+      {isBreakpointReached ? (
+        <div className='bs-full overflow-y-auto overflow-x-hidden' onScroll={container => scrollMenu(container, false)}>
+          <MenuContent />
+        </div>
+      ) : (
+        <PerfectScrollbar options={{ wheelPropagation: false, suppressScrollX: true }} onScrollY={container => scrollMenu(container, true)}>
+          <MenuContent />
+        </PerfectScrollbar>
+      )}
+    </>
   )
 }
 
 export default VerticalMenu
+

@@ -340,7 +340,8 @@ export async function GET(req: Request) {
           date: date,
           areas: areaName,
           areaId: areaId, 
-          shifts: attendanceRaw.shiftName,
+          // Prefer explicit shiftName; fall back to legacy fields if needed
+          shifts: attendanceRaw?.shiftName || attendanceRaw?.shifts || attendanceRaw?.fieldName,
           avatar: avatar,
           checkIn: attendanceRaw?.checkIn || {
             time: '-',
@@ -391,8 +392,11 @@ export async function GET(req: Request) {
 }
 
 function formatTime(date: Date): string {
-  // Format waktu menjadi HH:mm:ss
-  return date.toTimeString().split(' ')[0];
+  // Format waktu menjadi HH.mm.ss (pakai titik)
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+  const ss = String(date.getSeconds()).padStart(2, '0')
+  return `${hh}.${mm}.${ss}`
 }
 
 function convertTimeDotToColon(time: string): string {
@@ -535,7 +539,7 @@ function getShiftInfo(date: Date): { name: string; startTime: Date } | null {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, keterangan } = await req.json();
+const { userId, areaId: areaIdBody, shiftId: shiftIdBody, date: dateBody, checkInTime: checkInTimeBody, keterangan } = await req.json();
 
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ success: false, message: 'Invalid userId' }, { status: 400 });
@@ -551,39 +555,111 @@ export async function POST(req: NextRequest) {
     }
     const userData = userSnap.data();
 
-    // 🧭 Ambil area
-    if (!Array.isArray(userData.areas) || userData.areas.length === 0) {
-      return NextResponse.json({ success: false, message: 'Area data is missing or invalid' }, { status: 400 });
+// 🧭 Ambil area
+    let selectedArea: any = null;
+    if (areaIdBody) {
+      const areaRef = doc(firestore, 'areas', areaIdBody)
+      const aSnap = await getDoc(areaRef)
+      if (aSnap.exists()) selectedArea = { id: aSnap.id, ...(aSnap.data() as any) }
     }
 
-    const areaSnaps = await Promise.all(userData.areas.map((areaRef: any) => getDoc(areaRef)));
-    const validArea = areaSnaps.filter(areaSnap => areaSnap.exists()).map(areaSnap => areaSnap.data() as AreaType);
-    if (validArea.length === 0) {
-      return NextResponse.json({ success: false, message: 'No valid area found' }, { status: 404 });
+    if (!selectedArea) {
+      if (!Array.isArray(userData.areas) || userData.areas.length === 0) {
+        return NextResponse.json({ success: false, message: 'Area data is missing or invalid' }, { status: 400 });
+      }
+      const areaSnapsFallback = await Promise.all(userData.areas.map((areaRef: any) => getDoc(areaRef)));
+      const validAreaFallback = areaSnapsFallback
+        .filter(areaSnap => areaSnap.exists())
+        .map(areaSnap => ({ id: areaSnap.id, ...(areaSnap.data() as any) }));
+      if (validAreaFallback.length === 0) {
+        return NextResponse.json({ success: false, message: 'No valid area found' }, { status: 404 });
+      }
+      selectedArea = validAreaFallback[0];
     }
-    const selectedArea = validArea[0];
 
     // 🕰 Waktu sekarang (GMT+7)
     const now = new Date();
     const localOffset = now.getTimezoneOffset() * 60000;
     const gmt7Offset = 7 * 60 * 60 * 1000;
-    const nowInGMT7 = new Date(now.getTime() + localOffset + gmt7Offset);
+let nowInGMT7 = new Date(now.getTime() + localOffset + gmt7Offset);
+    if (dateBody && checkInTimeBody) {
+      const timeStr = checkInTimeBody.length === 5 ? `${checkInTimeBody}:00` : checkInTimeBody
+      nowInGMT7 = new Date(`${dateBody}T${timeStr}+07:00`)
+    }
     const today = nowInGMT7.toISOString().split('T')[0];
 
-    // 🕐 Tentukan shift berdasarkan waktu absen
-    const shiftInfo = getShiftInfo(nowInGMT7);
-    if (!shiftInfo) {
-      return NextResponse.json({
-        success: false,
-        message: 'Kamu hanya bisa absen di jam shift yang ditentukan (07:00–08:59, 13:00–14:49, 15:00–17:00)'
-      }, { status: 403 });
+    // 🕐 Tentukan shift: jika shiftId dikirim dari client (manual), gunakan itu; kalau tidak, gunakan logic asli
+    let selectedShift: { ref: any; data: ShiftType } | null = null;
+
+    if (shiftIdBody) {
+      try {
+        const sRef = doc(firestore, 'shifts', String(shiftIdBody));
+        const sSnap = await getDoc(sRef);
+        if (sSnap.exists()) {
+          selectedShift = { ref: sRef, data: sSnap.data() as ShiftType };
+        }
+      } catch {}
     }
 
-    const { name: selectedShiftName, startTime: shiftStartTime } = shiftInfo;
+    if (!selectedShift) {
+      if (!Array.isArray(userData.shifts) || userData.shifts.length === 0) {
+        return NextResponse.json({ success: false, message: 'Shift data is missing or invalid' }, { status: 400 });
+      }
+      const shiftRefs: any[] = Array.isArray(userData.shifts) ? userData.shifts : [];
+      const shiftSnaps = await Promise.all(shiftRefs.map((shiftRef: any) => getDoc(shiftRef)));
 
-    // ⏱ Hitung keterlambatan
+      const validShifts: { ref: any; data: ShiftType }[] = [];
+      for (let i = 0; i < shiftSnaps.length; i++) {
+        const snap = shiftSnaps[i];
+        if (snap.exists()) {
+          validShifts.push({ ref: shiftRefs[i], data: snap.data() as ShiftType });
+        }
+      }
+
+      if (validShifts.length === 0) {
+        return NextResponse.json({ success: false, message: 'No valid shifts found' }, { status: 404 });
+      }
+
+      // Pilih shift di mana now < end_time; jika tidak ada yang cocok, ambil shift pertama (logic lama)
+      const todayISO = nowInGMT7.toISOString().split('T')[0];
+      selectedShift = validShifts.find(s => {
+        const formattedEndTime = convertTimeDotToColon(s.data.end_time);
+        const shiftEndTimeStr = `${todayISO}T${formattedEndTime}+07:00`;
+        const shiftEndTime = new Date(shiftEndTimeStr);
+        // Jika end_time < start_time, berarti lewat tengah malam -> majukan 1 hari untuk end
+        if (s.data.end_time < s.data.start_time) {
+          shiftEndTime.setDate(shiftEndTime.getDate() + 1);
+        }
+        return nowInGMT7 < shiftEndTime;
+      }) || validShifts[0];
+    }
+
+    // Hitung keterlambatan dibanding start_time dari shift terpilih
+    const todayISO = nowInGMT7.toISOString().split('T')[0];
+    const formattedStartTime = convertTimeDotToColon(selectedShift!.data.start_time);
+    const shiftStartTimeStr = `${todayISO}T${formattedStartTime}+07:00`;
+    const shiftStartTime = new Date(shiftStartTimeStr);
+
     const lateBy = Math.max(0, (nowInGMT7.getTime() - shiftStartTime.getTime()) / 1000); // detik
-    const status = lateBy > 0 ? 'Late' : 'Present';
+    const status = lateBy > 0 ? 'late' : 'present';
+
+    // Jika manual memilih shift, normalisasi nama agar berpola "shift <label>"
+    let selectedShiftName = selectedShift!.data.name;
+    if (shiftIdBody) {
+      const original = (selectedShiftName || '').toLowerCase().trim();
+      // Hilangkan prefix "shift" jika ada, ambil label inti berdasarkan keyword yang dikenal
+      const cleaned = original.replace(/^shift\s+/, '');
+      let label = '';
+      if (cleaned.includes('pagi')) label = 'pagi';
+      else if (cleaned.includes('siang')) label = 'siang';
+      else if (cleaned.includes('malam')) label = 'sore'; // map malam -> sore sesuai contoh
+      else if (cleaned.includes('sore')) label = 'sore';
+      else {
+        // fallback: ambil kata pertama setelah menghapus prefix shift
+        label = cleaned.split(/\s+/)[0] || cleaned;
+      }
+      selectedShiftName = `shift ${label}`;
+    }
 
     // 📅 Tanggal & waktu
     const timestamp = Timestamp.now();
@@ -593,18 +669,45 @@ export async function POST(req: NextRequest) {
 
     // 🔥 Simpan data ke Firestore
     const attendanceRef = doc(collection(firestore, `attendance/${userId}/day`), date);
-    const attendanceData = {
+    // Tentukan koordinat lokasi dari area (ambil lokasi pertama jika ada)
+    let locName: string = selectedArea?.name || 'Unknown'
+    let locLat: number = 0
+    let locLng: number = 0
+    try {
+      const areaLocs = Array.isArray(selectedArea?.locations) ? selectedArea.locations : []
+      if (areaLocs.length > 0) {
+        const firstLoc = areaLocs[0]
+        const locId = typeof firstLoc === 'object' && firstLoc !== null ? String(firstLoc.id) : String(firstLoc)
+        if (locId) {
+          const locSnap = await getDoc(doc(firestore, 'locations', locId))
+          if (locSnap.exists()) {
+            const l = locSnap.data() as any
+            locName = l?.name ?? locName
+            if (typeof l?.latitude === 'number') locLat = l.latitude
+            if (typeof l?.longitude === 'number') locLng = l.longitude
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Gagal mengambil lokasi area:', e)
+    }
+
+    const attendanceData: any = {
       attendanceId: date,
       userId,
       name: userData.name,
       date,
       areas: selectedArea.name,
-      shifts: selectedShiftName,
+      areaId: selectedArea.id,
+      shiftName: selectedShiftName,
       avatar: userData.avatar || '',
       checkIn: {
         time: formatTime(nowInGMT7),
         faceVerified: false,
-        location: { latitude: 0, longitude: 0, name: 'Unknown' }
+        location: { latitude: locLat, longitude: locLng, name: locName },
+        // Simpan relasi shift yang digunakan saat check-in (jika ada)
+        shiftRef: selectedShift?.ref || null,
+        shiftId: selectedShift?.ref?.id || null
       },
       checkOut: {
         time: '-',
@@ -617,8 +720,12 @@ export async function POST(req: NextRequest) {
       lateBy,
       status,
       workingHours: 0,
-      keterangan
+      daily_rate: typeof (userData as any)?.daily_rate === 'number' ? (userData as any).daily_rate : 0
     };
+
+    if (typeof keterangan !== 'undefined') {
+      attendanceData.keterangan = keterangan;
+    }
 
     await setDoc(attendanceRef, attendanceData);
     console.log(`✅ Attendance recorded successfully for user ${userId}`);
@@ -642,7 +749,8 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { data } = await req.json();
+    const body = await req.json() as any;
+    const { data, checkOutTime, areaId: checkOutAreaId } = body || {};
     console.log(`🔄 Updating attendance for user: ${JSON.stringify(data)}`);
 
     const userId = data.userId;
@@ -671,11 +779,17 @@ export async function PUT(req: NextRequest) {
     const now = new Date();
     const localOffset = now.getTimezoneOffset() * 60000;
     const gmt7Offset = 7 * 60 * 60 * 1000;
-    const nowInGMT7 = new Date(now.getTime() + localOffset + gmt7Offset);
+    let nowInGMT7 = new Date(now.getTime() + localOffset + gmt7Offset);
+
+    // Override waktu checkout jika dikirim dari client
+    if (checkOutTime) {
+      const normalized = checkOutTime.length === 5 ? `${checkOutTime}:00` : checkOutTime
+      nowInGMT7 = new Date(`${date}T${normalized}+07:00`)
+    }
     const today = nowInGMT7.toISOString().split('T')[0];
 
     // 🔍 Tentukan jam pulang berdasarkan shift (dari data absensi saat check-in)
-    const shiftName = attendanceData.shifts;
+    const shiftName = attendanceData?.fieldName || attendanceData?.shiftName || attendanceData?.shifts;
     const shiftEndTime = new Date(nowInGMT7);
 
     if (shiftName === 'Pagi') {
@@ -691,8 +805,10 @@ export async function PUT(req: NextRequest) {
     const earlyLeaveBy = Math.max(0, (shiftEndTime.getTime() - nowInGMT7.getTime()) / 1000);
 
     // Hitung working hours
-    const fullCheckInStr = `${date}T${attendanceData.checkIn.time}+07:00`;
-    const fullCheckOutStr = `${date}T${formatTime(nowInGMT7)}+07:00`;
+    const checkInColon = convertTimeDotToColon(attendanceData.checkIn.time);
+    const fullCheckInStr = `${date}T${checkInColon}+07:00`;
+    const checkOutColon = convertTimeDotToColon(formatTime(nowInGMT7));
+    const fullCheckOutStr = `${date}T${checkOutColon}+07:00`;
 
     let checkInDate = new Date(fullCheckInStr);
     let checkOutDate = new Date(fullCheckOutStr);
@@ -708,13 +824,46 @@ export async function PUT(req: NextRequest) {
     const dateGMT7 = timestamp.toDate();
     const localDate = new Date(dateGMT7.getTime() + gmt7Offset);
 
+    // Tentukan lokasi checkout berdasar area terpilih atau area existing di attendance
+    let outLocName = attendanceData?.areas || 'Unknown'
+    let outLat = 0
+    let outLng = 0
+
+    try {
+      let areaIdToUse = checkOutAreaId || attendanceData?.areaId
+      if (areaIdToUse) {
+        const areaDocRef = doc(firestore, 'areas', areaIdToUse)
+        const areaSnap = await getDoc(areaDocRef)
+        if (areaSnap.exists()) {
+          const areaData = areaSnap.data() as any
+          outLocName = areaData?.name || outLocName
+          const areaLocs = Array.isArray(areaData?.locations) ? areaData.locations : []
+          if (areaLocs.length > 0) {
+            const firstLoc = areaLocs[0]
+            const locId = typeof firstLoc === 'object' && firstLoc !== null ? String(firstLoc.id) : String(firstLoc)
+            if (locId) {
+              const locSnap = await getDoc(doc(firestore, 'locations', locId))
+              if (locSnap.exists()) {
+                const l = locSnap.data() as any
+                outLocName = l?.name ?? outLocName
+                if (typeof l?.latitude === 'number') outLat = l.latitude
+                if (typeof l?.longitude === 'number') outLng = l.longitude
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Gagal mengambil lokasi checkout area:', e)
+    }
+
     // 🔄 Update data kehadiran
     const updatedAttendanceData = {
       ...attendanceData,
       checkOut: {
         time: formatTime(nowInGMT7),
         faceVerified: false,
-        location: { latitude: 0, longitude: 0, name: 'Unknown' }
+        location: { latitude: outLat, longitude: outLng, name: outLocName }
       },
       earlyLeaveBy,
       workingHours: workingSeconds,

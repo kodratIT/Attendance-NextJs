@@ -31,4 +31,17 @@ export type AttendanceRowType = {
     updatedAt: string;
     userId: string;
     workingHours: number;
+    // Overtime fields
+    statusLembur?: boolean;
+    lemburDetail?: {
+      overtimeId: string;
+      startAt: number;
+      endAt: number;
+      durationMinutes: number;
+      reason: string;
+      approvedAt: number;
+      approvedBy: string;
+      approverName: string;
+      crossMidnight?: boolean;
+    };
   };

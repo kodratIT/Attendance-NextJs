@@ -5,6 +5,9 @@ import axios from 'axios';
 import CardContent from '@mui/material/CardContent';
 import Grid from '@mui/material/Grid';
 import MenuItem from '@mui/material/MenuItem';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 // Type Imports
 import type { AttendanceRowType } from '@/types/attendanceRowTypes';
 // Component Imports
@@ -25,6 +28,7 @@ const TableFilters = ({
   const [dateRange, setDateRange] = useState<string>('');
   const [area, setArea] = useState<string>('');
   const [areas, setAreas] = useState<AreaType[]>([]);
+  const [specificDate, setSpecificDate] = useState<any>(null);
   const [isFiltering, setIsFiltering] = useState<boolean>(false);
 
   // Fetch daftar area kerja dari API saat pertama kali load
@@ -50,12 +54,18 @@ const fetchFilteredData = async () => {
     setLoading(true);
 
     const today = new Date();
-    today.setHours(today.getHours() + 7); // UTC+7
-
+    // Gunakan tanggal lokal tanpa konversi UTC agar konsisten dengan penyimpanan
     const todayLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
     let fromDate = new Date(todayLocal);
     let toDate = new Date(todayLocal);
+
+    // Jika memilih tanggal spesifik (kalender), gunakan tanggal itu untuk from/to
+    if (specificDate) {
+      const d = new Date(specificDate.year(), specificDate.month(), specificDate.date());
+      fromDate = d;
+      toDate = d;
+    }
 
     if (dateRange === "7d") {
       fromDate.setDate(todayLocal.getDate() - 6);
@@ -68,20 +78,10 @@ const fetchFilteredData = async () => {
       toDate = new Date(todayLocal.getFullYear(), todayLocal.getMonth(), 0);       // Akhir bulan lalu
     }
 
-    // Format tanggal
-    const formattedFromDate =
-      fromDate.getUTCFullYear() +
-      '-' +
-      String(fromDate.getUTCMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(fromDate.getUTCDate()).padStart(2, '0');
-
-    const formattedToDate =
-      toDate.getUTCFullYear() +
-      '-' +
-      String(toDate.getUTCMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(toDate.getUTCDate()).padStart(2, '0');
+    // Format tanggal lokal YYYY-MM-DD
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const formattedFromDate = `${fromDate.getFullYear()}-${pad(fromDate.getMonth() + 1)}-${pad(fromDate.getDate())}`;
+    const formattedToDate = `${toDate.getFullYear()}-${pad(toDate.getMonth() + 1)}-${pad(toDate.getDate())}`;
 
 
     const res = await axios.get(
@@ -135,7 +135,7 @@ const fetchFilteredData = async () => {
           </CustomTextField>
         </Grid>
 
-        {/* Filter Rentang Waktu
+        {/* Filter Rentang Waktu */}
         <Grid item xs={12} sm={4}>
           <CustomTextField
             select
@@ -153,8 +153,26 @@ const fetchFilteredData = async () => {
             <MenuItem value="7d">Last 7 Days</MenuItem>
             <MenuItem value="14d">Last 14 Days</MenuItem>
             <MenuItem value="1m">Last 1 Month</MenuItem>
+            <MenuItem value="last1m">Previous Month</MenuItem>
           </CustomTextField>
-        </Grid> */}
+        </Grid>
+
+        {/* Date Picker untuk Current Date */}
+        {dateRange === '' && (
+          <Grid item xs={12} sm={4}>
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <DatePicker
+                label="Pilih Tanggal"
+                value={specificDate}
+                onChange={(val) => {
+                  setSpecificDate(val);
+                  setIsFiltering(true);
+                }}
+                slotProps={{ textField: { fullWidth: true } }}
+              />
+            </LocalizationProvider>
+          </Grid>
+        )}
 
         {/* Filter Area */}
         <Grid item xs={12} sm={6}>

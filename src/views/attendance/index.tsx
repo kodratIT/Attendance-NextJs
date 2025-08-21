@@ -20,6 +20,7 @@ import TablePagination from '@mui/material/TablePagination'
 import type { TextFieldProps } from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
 import { CircularProgress } from '@mui/material'
+import AttendanceDialog from '@/components/dialogs/attendance-dialog'
 import RequestDialog from '@/components/dialogs/request-attendance-dialog'
 // Third-party Imports
 import classnames from 'classnames'
@@ -370,9 +371,9 @@ if (role?.toLowerCase() === 'admin') {
   //   };
   // }, []);
 
-  // useEffect(() => {
-  //   setFilteredData(data);
-  // }, [data]);
+  useEffect(() => {
+    setFilteredData(data)
+  }, [data])
   
   // Hooks
   const { lang: locale } = useParams()
@@ -544,9 +545,9 @@ if (role?.toLowerCase() === 'admin') {
             elementProps={{
               variant: 'contained',
               startIcon: <i className="tabler-plus" />,
-              children: 'Ajukan Kehadiran',
+children: 'Tambah Absensi',
             }}
-            dialog={RequestDialog}
+dialog={AttendanceDialog}
             dialogProps={{
               state: 'Add',
               data: null,
@@ -556,6 +557,7 @@ if (role?.toLowerCase() === 'admin') {
 
           </div>
         </div>
+        <TableFilters setLoading={setLoading} setData={setData} tableData={data} />
         <div className='overflow-x-auto'>
           <table className={tableStyles.table}>
             <thead>
@@ -619,7 +621,14 @@ if (role?.toLowerCase() === 'admin') {
           </table>
         </div>
         <TablePagination
-          component={() => <TablePaginationComponent table={table} />}
+          component={() => (
+            <TablePaginationComponent
+              pageIndex={table.getState().pagination.pageIndex}
+              pageSize={table.getState().pagination.pageSize}
+              rowCount={table.getFilteredRowModel().rows.length}
+              onPageChange={(_, pageIndex) => table.setPageIndex(pageIndex)}
+            />
+          )}
           count={table.getFilteredRowModel().rows.length}
           rowsPerPage={table.getState().pagination.pageSize}
           page={table.getState().pagination.pageIndex}

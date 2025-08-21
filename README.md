@@ -1,3 +1,44 @@
+# Attendance-NextJs — Permohonan (ACC) Feature
+
+This repo contains the Permohonan (Attendance Request) MVP implemented without Cloud Functions.
+
+Key collections
+- request: attendance fix requests
+- attendance/{userId}/day/{YYYY-MM-DD}: daily attendance
+- audit_logs: audit trail
+- notifications: basic notification stubs
+
+API endpoints
+- GET /api/requests?status=SUBMITTED&type=...&employeeId=...
+- POST /api/requests
+- GET /api/requests/[id]
+- PATCH /api/requests/[id]
+- GET /api/requests/[id]/context
+
+Role enforcement
+- Reviewers (env: NEXT_PUBLIC_REVIEWER_ROLES, default Admin,HR,Manager) can approve/reject/return.
+- Regular users can only list their own; can cancel own SUBMITTED request.
+
+Validations
+- Backdate and future date rules, reason length, duplicate active request prevention, monthly limit, subtype/time sanity, duration checks.
+
+Indexes to create (Firestore)
+- request: status Asc, createdAt Desc
+- request: employeeId Asc, date Asc, type Asc
+- request: employeeId Asc, createdAt Asc
+- audit_logs: requestId Asc, createdAt Asc
+
+Environment variables (optional)
+- NEXT_PUBLIC_REQUEST_MAX_BACK_DAYS=7
+- NEXT_PUBLIC_REQUEST_MIN_REASON_CHARS=10
+- NEXT_PUBLIC_REQUEST_MONTHLY_LIMIT=5
+- NEXT_PUBLIC_REVIEWER_ROLES=Admin,HR,Manager
+
+Dashboard
+- Menu Permohonan lists and filters requests.
+- Detail shows user, before attendance, audit history, attachments, and location snapshot.
+- Create dialog allows submitting a new request.
+
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started
