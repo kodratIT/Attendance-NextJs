@@ -178,10 +178,10 @@ export const authOptions: NextAuthOptions = {
         console.warn('⚠️ Invalid URL:', url)
       }
       
-      // Default redirect to home after successful login
-      const homeUrl = `${fallbackBaseUrl}/home`
-      console.log('🏠 Default redirect to:', homeUrl)
-      return homeUrl
+      // Default redirect to dashboard after successful login
+      const dashboardUrl = `${fallbackBaseUrl}/dashboard`
+      console.log('🏠 Default redirect to dashboard:', dashboardUrl)
+      return dashboardUrl
     },
 
     async signIn({ user, account, profile }) {
