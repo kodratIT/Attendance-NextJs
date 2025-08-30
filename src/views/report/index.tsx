@@ -19,7 +19,7 @@ import { styled } from '@mui/material/styles'
 import TablePagination from '@mui/material/TablePagination'
 import type { TextFieldProps } from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
-import { CircularProgress } from '@mui/material'
+import { CircularProgress, Tabs, Tab, Box, Fade } from '@mui/material'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -50,6 +50,10 @@ import OptionMenu from '@core/components/option-menu'
 import TablePaginationComponent from '@components/TablePaginationComponent'
 import CustomTextField from '@core/components/mui/TextField'
 import CustomAvatar from '@core/components/mui/Avatar'
+import EmptyReportState from '@components/empty-states/EmptyReportState'
+import RichAnalyticsDashboard from '@components/analytics/RichAnalyticsDashboard'
+import ProfessionalReportTemplate from '@components/reports/ProfessionalReportTemplate'
+import AttendancePatternCharts from '@components/charts/AttendancePatternCharts'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -170,16 +174,25 @@ const calculateScore = (record: AttendanceRowType): number => {
     return 0;
   }
 
-  if (checkInMin < jamDasarMin) return 0;
-
-  const selisih = checkInMin - jamDasarMin;
   const batasAbsen = jamDasarMin + 60;
+  const selisih = Math.max(0, checkInMin - jamDasarMin);
 
-  if (checkInMin > batasAbsen) return 0;
+  // ✅ PERBAIKAN: Jika datang lebih awal atau tepat waktu = skor 100
+  if (checkInMin <= jamDasarMin) {
+    return 100;
+  }
+  
+  // ✅ Jika terlambat lebih dari 60 menit = skor 0
+  if (checkInMin > batasAbsen) {
+    return 0;
+  }
 
-  if (selisih <= 30) return 100 - selisih;
-
-  return Math.max(0, 70 - (selisih - 30) * 2);
+  // ✅ Perhitungan skor keterlambatan yang konsisten
+  if (selisih <= 30) {
+    return 100 - selisih;
+  } else {
+    return Math.max(0, 70 - (selisih - 30) * 2);
+  }
 };
 
 const processAttendanceData = (
@@ -289,11 +302,44 @@ const DebouncedInput = ({
   return <CustomTextField {...props} value={value} onChange={e => setValue(e.target.value)} />
 }
 
-
 const userStatusObj: UserStatusType = {
   active: 'success',
   pending: 'warning',
   inactive: 'secondary'
+}
+
+// Helper function to check if filters are applied
+const checkHasFilters = (globalFilter: string, rowCount: number, totalData: number) => {
+  return globalFilter.trim() !== '' || rowCount < totalData
+}
+
+// Tab panel component
+interface TabPanelProps {
+  children?: React.ReactNode
+  index: number
+  value: number
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`report-tabpanel-${index}`}
+      aria-labelledby={`report-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Fade in={true} timeout={500}>
+          <Box>
+            {children}
+          </Box>
+        </Fade>
+      )}
+    </div>
+  )
 }
 
 // Column Definitions
@@ -310,6 +356,10 @@ const ReportTable = () => {
   const [globalFilter, setGlobalFilter] = useState('')
   const [loading,setLoading] = useState<boolean>(false);
   const [loadingDownload,setLoadingDownload] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasFilters, setHasFilters] = useState<boolean>(false);
+  const [currentTab, setCurrentTab] = useState<number>(0);
+  const [pdfReportOpen, setPdfReportOpen] = useState<boolean>(false);
 
   useEffect(() => {
     fetchInitialReport();
@@ -318,10 +368,13 @@ const ReportTable = () => {
   const fetchInitialReport = async () => {
     try {
       setLoading(true);
+      setError(null);
       console.log("🔄 Fetching initial report data...");
       
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      if (!apiUrl) throw new Error("❌ NEXT_PUBLIC_API_URL belum diatur!");
+      if (!apiUrl) {
+        throw new Error("❌ NEXT_PUBLIC_API_URL belum diatur!");
+      }
 
       // Gunakan local timezone untuk konsistensi
       const today = new Date();
@@ -355,6 +408,7 @@ const ReportTable = () => {
       setExcelData(res.data);
     } catch (err) {
       console.error("❌ Gagal fetch data awal:", err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch initial data');
       setData([]);
       setFilteredData([]);
       setExcelData([]);
@@ -366,6 +420,7 @@ const ReportTable = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null);
 
       let fromDate = new Date();
 
@@ -385,10 +440,12 @@ const ReportTable = () => {
       console.log(excelData)
       setData(res.data)
 
-      setLoading(false);
     } catch (error) {
       console.error("❌ Error fetching filtered data:", error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch data');
       setData([]);
+    } finally {
+      setLoading(false);
     }
   };
   // Hooks
@@ -1201,10 +1258,11 @@ const handleExportPresensiSemuaKaryawan = () => {
           No: userData.records.length + 1,
           Nama: userData.name,
           "Jam Masuk": jamMasuk,
+          "Jam Dasar": jamDasar,
           Role: role,
           Lokasi: lokasi,
           "Selisih (mnt)": selisih,
-          Skor: skor
+          "Skor Kedisiplinan": skor
         });
 
         userData.totalSkor += skor;
@@ -1230,17 +1288,17 @@ const handleExportPresensiSemuaKaryawan = () => {
         sheetRecords.push(...user.records);
 
         sheetRecords.push(
-          { No: '', Nama: '', "Jam Masuk": 'Total Skor', Role: '', Lokasi: '', "Selisih (mnt)": '', Skor: user.totalSkor },
-          { No: '', Nama: '', "Jam Masuk": 'Total Hari', Role: '', Lokasi: '', "Selisih (mnt)": '', Skor: user.totalHari },
-          { No: '', Nama: '', "Jam Masuk": 'Tingkat Disiplin (%)', Role: '', Lokasi: '', "Selisih (mnt)": '', Skor: user.rataRata.toFixed(2) },
-          { No: '', Nama: '', "Jam Masuk": '', Role: '', Lokasi: '', "Selisih (mnt)": '', Skor: '' }
+          { No: '', Nama: '', "Jam Masuk": 'Total Skor', "Jam Dasar": '', Role: '', Lokasi: '', "Selisih (mnt)": '', "Skor Kedisiplinan": user.totalSkor },
+          { No: '', Nama: '', "Jam Masuk": 'Total Hari', "Jam Dasar": '', Role: '', Lokasi: '', "Selisih (mnt)": '', "Skor Kedisiplinan": user.totalHari },
+          { No: '', Nama: '', "Jam Masuk": '📊 Tingkat Kedisiplinan (%)', "Jam Dasar": '', Role: '', Lokasi: '', "Selisih (mnt)": '', "Skor Kedisiplinan": `${user.rataRata.toFixed(2)}%` },
+          { No: '', Nama: '', "Jam Masuk": '', "Jam Dasar": '', Role: '', Lokasi: '', "Selisih (mnt)": '', "Skor Kedisiplinan": '' }
         );
       }
 
             // Tambahkan baris pemisah kosong dulu (opsional)
       // Tambahkan baris kosong pemisah
       sheetRecords.push({
-        No: '', Nama: '', "Jam Masuk": '', Role: '', Lokasi: '', "Jam Dasar": '', "Selisih (mnt)": '', Skor: ''
+        No: '', Nama: '', "Jam Masuk": '', "Jam Dasar": '', Role: '', Lokasi: '', "Selisih (mnt)": '', "Skor Kedisiplinan": ''
       });
 
       // Waktu sekarang pakai Date bawaan
@@ -1254,7 +1312,7 @@ const handleExportPresensiSemuaKaryawan = () => {
 
       // Tambahkan footer cetakan
       sheetRecords.push({
-        No: '', Nama: '', "Jam Masuk": `Dicetak dari sistem pada ${now}`, Role: '', Lokasi: '',  "Selisih (mnt)": '', Skor: ''
+        No: '', Nama: '', "Jam Masuk": `📋 Dicetak dari sistem pada ${now}`, "Jam Dasar": '', Role: '', Lokasi: '', "Selisih (mnt)": '', "Skor Kedisiplinan": ''
       });
 
       const sheetName = key.substring(0, 31);
@@ -1277,6 +1335,57 @@ const handleExportPresensiSemuaKaryawan = () => {
           setData={setFilteredData}
           setExcelData={setExcelData}
         />
+        
+        {/* Tab Navigation */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}>
+          <Tabs 
+            value={currentTab} 
+            onChange={(_, newValue) => setCurrentTab(newValue)}
+            sx={{
+              '& .MuiTab-root': {
+                textTransform: 'none',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                px: 3,
+                py: 2
+              }
+            }}
+          >
+            <Tab 
+              label={
+                <Box display="flex" alignItems="center" gap={1}>
+                  <i className="tabler-table" />
+                  📊 Data Laporan
+                </Box>
+              } 
+              id="report-tab-0"
+              aria-controls="report-tabpanel-0"
+            />
+            <Tab 
+              label={
+                <Box display="flex" alignItems="center" gap={1}>
+                  <i className="tabler-chart-bar" />
+                  📈 Analytics & Insights
+                </Box>
+              } 
+              id="report-tab-1"
+              aria-controls="report-tabpanel-1"
+            />
+            <Tab 
+              label={
+                <Box display="flex" alignItems="center" gap={1}>
+                  <i className="tabler-chart-line" />
+                  📊 Visual Charts
+                </Box>
+              } 
+              id="report-tab-2"
+              aria-controls="report-tabpanel-2"
+            />
+          </Tabs>
+        </Box>
+
+        {/* Tab Content */}
+        <TabPanel value={currentTab} index={0}>
         
         <div className='flex justify-between flex-col items-start md:flex-row md:items-center p-6 border-bs gap-4'>
         <div className="flex items-center gap-2">
@@ -1322,6 +1431,22 @@ const handleExportPresensiSemuaKaryawan = () => {
             >
               Ekspor Slip Gaji
             </Button>
+            
+            <Button
+              color="secondary"
+              variant="contained"
+              onClick={() => setPdfReportOpen(true)}
+              startIcon={<i className="tabler-file-export" />}
+              className="is-full sm:is-auto"
+              sx={{
+                background: 'linear-gradient(135deg, #e91e63, #ad1457)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #c2185b, #880e4f)'
+                }
+              }}
+            >
+              📄 PDF Report
+            </Button>
 
           </div>
         </div>
@@ -1363,14 +1488,6 @@ const handleExportPresensiSemuaKaryawan = () => {
                   </td>
                 </tr>
               </tbody>
-            ) : table.getFilteredRowModel().rows.length === 0 ? (
-              <tbody>
-                <tr>
-                  <td colSpan={table.getVisibleFlatColumns().length} className="text-center">
-                    Tidak Ada Data Yang Tersedia
-                  </td>
-                </tr>
-              </tbody>
             ) : (
               <tbody>
                 {table
@@ -1387,21 +1504,62 @@ const handleExportPresensiSemuaKaryawan = () => {
             )}
           </table>
         </div>
-         <TablePagination
-        component={() => (
-          <TablePaginationComponent
-            pageIndex={table.getState().pagination.pageIndex}
-            pageSize={table.getState().pagination.pageSize}
-            rowCount={table.getFilteredRowModel().rows.length}
-            onPageChange={(_, pageIndex) => table.setPageIndex(pageIndex)}
+        
+        {/* Show empty state when no data and not loading */}
+        {!loading && table.getFilteredRowModel().rows.length === 0 && (
+          <EmptyReportState
+            type={error ? 'error' : (checkHasFilters(globalFilter, table.getFilteredRowModel().rows.length, data.length) ? 'no-results' : 'no-data')}
+            onRefresh={() => {
+              setError(null)
+              fetchData()
+            }}
+            onResetFilters={() => {
+              setGlobalFilter('')
+              // Reset other filters if needed
+            }}
           />
         )}
-        count={table.getFilteredRowModel().rows.length}
-        rowsPerPage={table.getState().pagination.pageSize}
-        page={table.getState().pagination.pageIndex}
-        onPageChange={(_, page) => table.setPageIndex(page)}
-      />
+        
+        {table.getFilteredRowModel().rows.length > 0 && (
+          <TablePagination
+            component={() => (
+              <TablePaginationComponent
+                pageIndex={table.getState().pagination.pageIndex}
+                pageSize={table.getState().pagination.pageSize}
+                rowCount={table.getFilteredRowModel().rows.length}
+                onPageChange={(_, pageIndex) => table.setPageIndex(pageIndex)}
+              />
+            )}
+            count={table.getFilteredRowModel().rows.length}
+            rowsPerPage={table.getState().pagination.pageSize}
+            page={table.getState().pagination.pageIndex}
+            onPageChange={(_, page) => table.setPageIndex(page)}
+          />
+        )}
+        </TabPanel>
+
+        {/* Tab 2: Analytics Dashboard */}
+        <TabPanel value={currentTab} index={1}>
+          <RichAnalyticsDashboard 
+            data={filteredData}
+          />
+        </TabPanel>
+
+        {/* Tab 3: Visual Data Charts */}
+        <TabPanel value={currentTab} index={2}>
+          <AttendancePatternCharts 
+            data={filteredData}
+          />
+        </TabPanel>
       </Card>
+      
+      {/* Professional PDF Report Generator */}
+      <ProfessionalReportTemplate
+        data={filteredData}
+        open={pdfReportOpen}
+        onClose={() => setPdfReportOpen(false)}
+        userRole="manager" // This should come from actual user context/auth
+      />
     </>
   )
 }
