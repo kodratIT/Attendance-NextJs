@@ -32,6 +32,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import tableStyles from '@core/styles/table.module.css'
 import CustomTextField from '@core/components/mui/TextField'
 import TablePaginationComponent from '@components/TablePaginationComponent'
+import '@/styles/table-hover.css'
 import type { OvertimeRequest, OvertimeStatus, OvertimeAction, OvertimeActionPayload } from '@/types/overtimeTypes'
 
 // Transform OvertimeRequest to table row format
@@ -328,7 +329,7 @@ export default function OvertimeView({ tableData = [], onRefresh }: OvertimeView
                     size="small" 
                     color="success"
                     disabled={actionLoading[`${row.original.id}-approve`] || Object.keys(actionLoading).some(key => key.startsWith(row.original.id))}
-                    onClick={() => handleAction(row.original, 'approve')}
+                    onClick={() => openApprovalDialog(row.original, 'approve')}
                   >
                     {actionLoading[`${row.original.id}-approve`] ? (
                       <i className="tabler-loader-2" style={{ animation: 'spin 1s linear infinite' }} />
@@ -434,7 +435,15 @@ export default function OvertimeView({ tableData = [], onRefresh }: OvertimeView
 
   return (
     <>
-      <Card className="mb-4">
+      <Card className="mb-4" sx={{ 
+        boxShadow: (theme) => theme.palette.mode === 'dark' 
+          ? '0 4px 12px rgba(0,0,0,0.3)' 
+          : '0 4px 12px rgba(0,0,0,0.1)', 
+        borderRadius: 2,
+        background: (theme) => theme.palette.mode === 'dark'
+          ? 'linear-gradient(145deg, #1e293b 0%, #334155 100%)'
+          : 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)'
+      }}>
         <CardHeader 
           title={(
             <Typography variant="h5" component="h1" fontWeight="bold">
@@ -444,8 +453,21 @@ export default function OvertimeView({ tableData = [], onRefresh }: OvertimeView
         />
         <CardContent>
           {/* Filter Section */}
-          <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+          <Box sx={{ 
+            mb: 3, 
+            p: 2, 
+            borderRadius: 2,
+            background: (theme) => theme.palette.mode === 'dark'
+              ? 'linear-gradient(145deg, #1e293b 0%, #334155 100%)'
+              : 'linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)',
+            boxShadow: (theme) => theme.palette.mode === 'dark'
+              ? '0 2px 8px rgba(0,0,0,0.3)'
+              : '0 2px 8px rgba(0,0,0,0.1)',
+            border: (theme) => theme.palette.mode === 'dark'
+              ? '1px solid rgba(255,255,255,0.1)'
+              : '1px solid rgba(0,0,0,0.05)'
+          }}>
+            <Typography variant="h6" gutterBottom sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
               🔍 Filter & Pencarian
             </Typography>
             <Grid container spacing={2} alignItems="center">
@@ -536,7 +558,14 @@ export default function OvertimeView({ tableData = [], onRefresh }: OvertimeView
                   <tr><td colSpan={columns.length + 1}>Tidak ada data</td></tr>
                 ) : (
                   table.getRowModel().rows.map(row => (
-                    <tr key={row.id} className="hover:bg-gray-50">
+                    <tr 
+                      key={row.id} 
+                      className="table-row-hover transition-colors duration-200 cursor-pointer"
+                      style={{
+                        '--hover-bg-light': 'rgba(249, 250, 251, 0.8)',
+                        '--hover-bg-dark': 'rgba(55, 65, 81, 0.4)'
+                      } as any}
+                    >
                       {row.getVisibleCells().map(cell => (
                         <td key={cell.id} className="whitespace-nowrap">
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -560,23 +589,47 @@ export default function OvertimeView({ tableData = [], onRefresh }: OvertimeView
       </Card>
 
       {/* Detail Dialog */}
-      <Dialog open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <i className="tabler-clock-hour-4" style={{ fontSize: '1.5rem', color: '#1976d2' }} />
-            <Typography variant="h6">Detail Pengajuan Lembur</Typography>
-          </Box>
+      <Dialog 
+        open={detailOpen} 
+        onClose={() => setDetailOpen(false)} 
+        fullWidth 
+        maxWidth="md"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: (theme) => theme.palette.mode === 'dark' 
+              ? '0 8px 32px rgba(0,0,0,0.4)' 
+              : '0 8px 32px rgba(0,0,0,0.12)',
+            background: (theme) => theme.palette.mode === 'dark'
+              ? 'linear-gradient(145deg, #1e293b 0%, #334155 100%)'
+              : 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          textAlign: 'center',
+          fontWeight: 'bold',
+          fontSize: '1.3rem'
+        }}>
+          🕰️ Detail Pengajuan Lembur
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ p: 3 }}>
           {detail && (
-            <Grid container spacing={3} sx={{ mt: 1 }}>
-              {/* Employee Info */}
-              <Grid item xs={12} md={6}>
-                <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                    👤 Informasi Karyawan
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <Stack spacing={3} sx={{ mt: 1 }}>
+              <Card sx={{ 
+                p: 2, 
+                backgroundColor: (theme) => theme.palette.mode === 'dark' 
+                  ? 'rgba(59, 130, 246, 0.1)' 
+                  : '#f8f9ff', 
+                border: (theme) => theme.palette.mode === 'dark' 
+                  ? '1px solid rgba(59, 130, 246, 0.2)' 
+                  : '1px solid #e3f2fd',
+                borderRadius: 2
+              }}>
+                <Stack spacing={2}>
+                  <div className="flex items-center gap-2">
                     <Avatar 
                       src={detail.employee.avatar} 
                       sx={{ width: 48, height: 48 }}
@@ -584,127 +637,128 @@ export default function OvertimeView({ tableData = [], onRefresh }: OvertimeView
                     >
                       {detail.employee.name.charAt(0).toUpperCase()}
                     </Avatar>
-                    <Box>
-                      <Typography variant="body1" fontWeight="medium">
-                        {detail.employee.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        ID: {detail.employee.id}
-                      </Typography>
-                      {detail.employee.department && (
-                        <Typography variant="body2" color="text.secondary">
-                          {detail.employee.department}
-                        </Typography>
-                      )}
-                    </Box>
-                  </Box>
-                </Box>
-              </Grid>
-              
-              {/* Time Info */}
-              <Grid item xs={12} md={6}>
-                <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                    ⏰ Informasi Waktu
-                  </Typography>
-                  <Stack spacing={1}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" color="text.secondary">Tanggal:</Typography>
-                      <Typography variant="body2" fontWeight="medium">
-                        {new Date(detail.date).toLocaleDateString('id-ID', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" color="text.secondary">Waktu:</Typography>
-                      <Typography variant="body2" fontWeight="medium">{detail.timeRange}</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" color="text.secondary">Durasi:</Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" fontWeight="medium">{detail.duration}</Typography>
-                        {detail.crossMidnight && (
-                          <Chip size="small" label="Lintas Hari" color="info" />
-                        )}
-                      </Box>
-                    </Box>
-                  </Stack>
-                </Box>
-              </Grid>
-              
-              {/* Reason */}
-              <Grid item xs={12}>
-                <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                    📝 Alasan Lembur
-                  </Typography>
-                  <Typography variant="body2" sx={{ 
-                    p: 2, 
-                    bgcolor: 'white', 
-                    borderRadius: 1, 
-                    border: '1px solid #e0e0e0',
-                    minHeight: 60,
-                    whiteSpace: 'pre-wrap'
-                  }}>
-                    {detail.reason || 'Tidak ada alasan yang diberikan'}
-                  </Typography>
-                </Box>
-              </Grid>
-              
-              {/* Status & Approval Info */}
-              <Grid item xs={12}>
-                <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                    📊 Status & Persetujuan
-                  </Typography>
-                  <Stack spacing={2}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" color="text.secondary">Status:</Typography>
-                      <Chip size="small" label={getStatusLabel(detail.status)} color={getStatusColor(detail.status)} />
-                    </Box>
-                    
-                    {detail.approver && (
-                      <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 1, border: '1px solid #e0e0e0' }}>
-                        <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-                          👨‍💼 Informasi Persetujuan
-                        </Typography>
-                        <Stack spacing={1}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="body2" color="text.secondary">Disetujui oleh:</Typography>
-                            <Typography variant="body2" fontWeight="medium">{detail.approver.name}</Typography>
-                          </Box>
-                          {detail.approver.approvedAt && (
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <Typography variant="body2" color="text.secondary">Tanggal:</Typography>
-                              <Typography variant="body2" fontWeight="medium">
-                                {new Date(detail.approver.approvedAt).toLocaleString('id-ID')}
-                              </Typography>
-                            </Box>
-                          )}
-                          {detail.approver.note && (
-                            <Box>
-                              <Typography variant="body2" color="text.secondary" gutterBottom>Catatan:</Typography>
-                              <Typography variant="body2" sx={{ 
-                                p: 1, 
-                                bgcolor: 'grey.100', 
-                                borderRadius: 1,
-                                fontStyle: 'italic'
-                              }}>
-                                &quot;{detail.approver.note}&quot;
-                              </Typography>
-                            </Box>
-                          )}
-                        </Stack>
-                      </Box>
+                    <div>
+                      <span className="text-lg">👤</span>
+                      <b>Nama Karyawan:</b> 
+                      <span className="font-medium" style={{ color: '#3B82F6' }}>{detail.employee.name}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">📅</span>
+                    <b>Tanggal Lembur:</b> 
+                    <span className="font-medium">
+                      {new Date(detail.date).toLocaleDateString('id-ID', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">⏰</span>
+                    <b>Waktu Lembur:</b> 
+                    <span className="font-medium">{detail.timeRange}</span>
+                    {detail.crossMidnight && (
+                      <span className="text-sm px-2 py-1 rounded-full" style={{ 
+                        backgroundColor: '#3B82F6', 
+                        color: 'white',
+                        fontSize: '0.75rem'
+                      }}>
+                        🌙 Lintas Hari
+                      </span>
                     )}
-                  </Stack>
-                </Box>
-              </Grid>
-            </Grid>
+                  </div>
+                </Stack>
+              </Card>
+
+              <Card sx={{ 
+                p: 2, 
+                backgroundColor: (theme) => theme.palette.mode === 'dark' 
+                  ? 'rgba(255, 152, 0, 0.1)' 
+                  : '#fff8f0', 
+                border: (theme) => theme.palette.mode === 'dark' 
+                  ? '1px solid rgba(255, 152, 0, 0.2)' 
+                  : '1px solid #ffe0b2',
+                borderRadius: 2
+              }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">📊</span>
+                  <b>Detail Lembur:</b>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">⏱️</span>
+                    <span className="text-sm" style={{ opacity: 0.7 }}>Durasi:</span>
+                    <span className="font-mono font-medium" style={{ color: '#10B981' }}>
+                      {detail.duration}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">📊</span>
+                    <span className="text-sm" style={{ opacity: 0.7 }}>Status:</span>
+                    <Chip size="small" label={getStatusLabel(detail.status)} color={getStatusColor(detail.status)} sx={{ fontWeight: 600 }} />
+                  </div>
+                </div>
+              </Card>
+
+              <Card sx={{ 
+                p: 2, 
+                backgroundColor: (theme) => theme.palette.mode === 'dark' 
+                  ? 'rgba(34, 197, 94, 0.1)' 
+                  : '#f0fdf4', 
+                border: (theme) => theme.palette.mode === 'dark' 
+                  ? '1px solid rgba(34, 197, 94, 0.2)' 
+                  : '1px solid #dcfce7',
+                borderRadius: 2
+              }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">📝</span>
+                  <b>Alasan Lembur:</b>
+                </div>
+                <div className="p-4 rounded-lg" style={{ 
+                  backgroundColor: '#f9f9f9',
+                  border: '1px solid rgba(0,0,0,0.1)',
+                  fontStyle: 'italic',
+                  minHeight: '80px',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {detail.reason || 'Tidak ada alasan yang diberikan'}
+                </div>
+              </Card>
+
+              {detail.approver && (
+                <Card sx={{ 
+                  p: 2, 
+                  backgroundColor: (theme) => theme.palette.mode === 'dark' 
+                    ? 'rgba(139, 69, 19, 0.1)' 
+                    : '#fdf6e3', 
+                  border: (theme) => theme.palette.mode === 'dark' 
+                    ? '1px solid rgba(139, 69, 19, 0.2)' 
+                    : '1px solid #f5d57c',
+                  borderRadius: 2
+                }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">👨‍💼</span>
+                    <b>Informasi Persetujuan:</b>
+                  </div>
+                  <div className="space-y-2">
+                    <div><b>Disetujui oleh:</b> <span className="font-medium" style={{ color: '#8B4513' }}>{detail.approver.name}</span></div>
+                    {detail.approver.approvedAt && (
+                      <div><b>Tanggal:</b> <span className="font-medium">{new Date(detail.approver.approvedAt).toLocaleString('id-ID')}</span></div>
+                    )}
+                    {detail.approver.note && (
+                      <div>
+                        <b>Catatan:</b>
+                        <div className="mt-1 p-2 rounded" style={{ backgroundColor: 'rgba(139, 69, 19, 0.05)', fontStyle: 'italic' }}>
+                          &quot;{detail.approver.note}&quot;
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+            </Stack>
           )}
         </DialogContent>
         <DialogActions>
@@ -715,17 +769,85 @@ export default function OvertimeView({ tableData = [], onRefresh }: OvertimeView
       </Dialog>
 
       {/* Action Dialog */}
-      <Dialog open={actionDialog.open} onClose={() => setActionDialog({ open: false, row: null, action: null })}>
-        <DialogTitle>
-          {actionDialog.action === 'approve' ? 'Setujui' : 'Tolak'} Pengajuan Lembur
+      <Dialog 
+        open={actionDialog.open} 
+        onClose={() => setActionDialog({ open: false, row: null, action: null })}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: (theme) => theme.palette.mode === 'dark' 
+              ? '0 8px 32px rgba(0,0,0,0.4)' 
+              : '0 8px 32px rgba(0,0,0,0.12)',
+            background: (theme) => theme.palette.mode === 'dark'
+              ? 'linear-gradient(145deg, #1e293b 0%, #334155 100%)'
+              : 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          background: actionDialog.action === 'approve' 
+            ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+            : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+          color: 'white',
+          textAlign: 'center',
+          fontWeight: 'bold',
+          fontSize: '1.2rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 1
+        }}>
+          {actionDialog.action === 'approve' ? (
+            <>
+              <span style={{ fontSize: '1.5rem' }}>✅</span>
+              Konfirmasi Persetujuan
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: '1.5rem' }}>❌</span>
+              Konfirmasi Penolakan
+            </>
+          )}
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ p: 3 }}>
           {actionDialog.row && (
-            <div className="space-y-3">
-              <div><b>Karyawan:</b> {actionDialog.row.employee.name}</div>
-              <div><b>Tanggal:</b> {new Date(actionDialog.row.date).toLocaleDateString('id-ID')}</div>
-              <div><b>Durasi:</b> {actionDialog.row.duration}</div>
-              <div><b>Alasan:</b> {actionDialog.row.reason}</div>
+            <Stack spacing={3} sx={{ mt: 1 }}>
+              <Card sx={{ 
+                p: 2, 
+                backgroundColor: (theme) => theme.palette.mode === 'dark' 
+                  ? 'rgba(59, 130, 246, 0.1)' 
+                  : '#f8f9ff', 
+                border: (theme) => theme.palette.mode === 'dark' 
+                  ? '1px solid rgba(59, 130, 246, 0.2)' 
+                  : '1px solid #e3f2fd',
+                borderRadius: 2
+              }}>
+                <Typography variant="body1" sx={{ mb: 2, fontWeight: 600 }}>
+                  {actionDialog.action === 'approve' 
+                    ? '🤔 Yakin mau setujui pengajuan lembur ini?' 
+                    : '🤔 Yakin mau tolak pengajuan lembur ini?'}
+                </Typography>
+                <Stack spacing={1}>
+                  <div className="flex items-center gap-2">
+                    <span>👤</span>
+                    <b>Karyawan:</b> {actionDialog.row.employee.name}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>📅</span>
+                    <b>Tanggal:</b> {new Date(actionDialog.row.date).toLocaleDateString('id-ID')}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>⏱️</span>
+                    <b>Durasi:</b> {actionDialog.row.duration}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>📝</span>
+                    <b>Alasan:</b> {actionDialog.row.reason}
+                  </div>
+                </Stack>
+              </Card>
               
               <TextField 
                 fullWidth 
@@ -734,9 +856,17 @@ export default function OvertimeView({ tableData = [], onRefresh }: OvertimeView
                 onChange={e => setApproverNote(e.target.value)} 
                 multiline 
                 rows={3}
-                placeholder={actionDialog.action === 'approve' ? 'Catatan persetujuan...' : 'Alasan penolakan...'}
+                placeholder={actionDialog.action === 'approve' 
+                  ? 'Tambahkan catatan persetujuan jika diperlukan...' 
+                  : 'Berikan alasan penolakan untuk karyawan...'}
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2
+                  }
+                }}
               />
-            </div>
+            </Stack>
           )}
         </DialogContent>
         <DialogActions>
@@ -768,8 +898,24 @@ export default function OvertimeView({ tableData = [], onRefresh }: OvertimeView
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={toast.open} autoHideDuration={3000} onClose={() => setToast(v => ({...v, open:false}))}>
-        <Alert onClose={() => setToast(v => ({...v, open:false}))} severity={toast.sev} variant="filled" sx={{ width: '100%' }}>
+      <Snackbar 
+        open={toast.open} 
+        autoHideDuration={3000} 
+        onClose={() => setToast(v => ({...v, open:false}))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={() => setToast(v => ({...v, open:false}))} 
+          severity={toast.sev} 
+          variant="filled" 
+          sx={{ 
+            width: '100%',
+            boxShadow: (theme) => theme.palette.mode === 'dark' 
+              ? '0 8px 32px rgba(0,0,0,0.4)' 
+              : '0 8px 32px rgba(0,0,0,0.12)',
+            borderRadius: 2
+          }}
+        >
           {toast.msg}
         </Alert>
       </Snackbar>
