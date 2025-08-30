@@ -11,9 +11,15 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 export const useNotification = () => {
   const context = useContext(NotificationContext);
+  
+  // During static generation, provide default values
   if (!context) {
-    throw new Error('useNotification must be used within a NotificationProvider');
+    // Return default values for static generation
+    return {
+      showNotification: () => {}
+    };
   }
+  
   return context;
 };
 

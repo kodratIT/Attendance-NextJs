@@ -86,7 +86,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 // Import tambahan untuk table
-import {
+import { 
   createColumnHelper,
   flexRender,
   getCoreRowModel,
@@ -137,15 +137,15 @@ const AttendanceHistoryWithFilter = ({ attendanceData, areaData, loading }: { at
     }
   };
 
-  const handleEmployeeClick = (employee: AttendanceRowType) => {
+  const handleEmployeeClick = useCallback((employee: AttendanceRowType) => {
     setSelectedEmployee(employee);
     setModalOpen(true);
-  };
+  }, []);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setModalOpen(false);
     setSelectedEmployee(null);
-  };
+  }, []);
 
   // Column Definitions menggunakan createColumnHelper
   const columnHelper = createColumnHelper<AttendanceRowType>();
@@ -239,7 +239,7 @@ const AttendanceHistoryWithFilter = ({ attendanceData, areaData, loading }: { at
         ),
       }),
     ],
-    [getStatusColor]
+    [getStatusColor, handleEmployeeClick]
   );
 
   // React Table instance
@@ -524,10 +524,10 @@ const AttendancePage = () => {
   useEffect(() => {
     fetchDataOptimized();
     
-    // Setup auto-refresh every 1 minute
+    // Setup auto-refresh every 5 minutes (reduced frequency)
     const interval = setInterval(() => {
       fetchDataOptimized();
-    }, 60000);
+    }, 300000); // 5 minutes instead of 1 minute
 
     return () => clearInterval(interval);
   }, [fetchDataOptimized]);
