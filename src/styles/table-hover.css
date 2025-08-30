@@ -1,0 +1,41 @@
+/* Table hover states untuk dark mode compatibility */
+
+/* Light mode hover - default */
+.table-row-hover:hover {
+  background-color: rgba(249, 250, 251, 0.8) !important;
+  transition: background-color 0.2s ease;
+}
+
+/* Dark mode hover - uses data-theme or specific selectors */
+[data-mui-color-scheme="dark"] .table-row-hover:hover,
+.dark .table-row-hover:hover,
+html[data-theme="dark"] .table-row-hover:hover {
+  background-color: rgba(55, 65, 81, 0.4) !important;
+  transition: background-color 0.2s ease;
+}
+
+/* Alternative approach using CSS custom properties */
+.table-row-hover {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.table-row-hover:hover {
+  background-color: var(--table-hover-bg, rgba(249, 250, 251, 0.8)) !important;
+}
+
+/* MUI dark theme detection */
+@media (prefers-color-scheme: dark) {
+  .table-row-hover {
+    --table-hover-bg: rgba(55, 65, 81, 0.4);
+  }
+}
+
+/* Additional specificity for MUI themes */
+.MuiCssBaseline-root[data-mui-color-scheme="dark"] .table-row-hover:hover {
+  background-color: rgba(55, 65, 81, 0.4) !important;
+}
+
+.MuiCssBaseline-root[data-mui-color-scheme="light"] .table-row-hover:hover {
+  background-color: rgba(249, 250, 251, 0.8) !important;
+}
