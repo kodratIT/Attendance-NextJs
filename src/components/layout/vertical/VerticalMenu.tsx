@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { getSession } from 'next-auth/react'
 import { useTheme } from '@mui/material/styles'
 import PerfectScrollbar from 'react-perfect-scrollbar'
@@ -14,7 +14,7 @@ import type { VerticalMenuContextProps } from '@menu/components/vertical-menu/Me
 import { Menu, MenuItem, SubMenu, MenuSection } from '@menu/vertical-menu'
 import useVerticalNav from '@menu/hooks/useVerticalNav'
 import StyledVerticalNavExpandIcon from '@menu/styles/vertical/StyledVerticalNavExpandIcon'
-import menuItemStyles from '@core/styles/vertical/menuItemStyles'
+import customMenuItemStyles from '@core/styles/vertical/customMenuStyles'
 import menuSectionStyles from '@core/styles/vertical/menuSectionStyles'
 
 type RenderExpandIconProps = {
@@ -56,26 +56,11 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
   const isAdmin = roleName === 'Admin'
   const isSuperAdmin = roleName === 'Super Admin'
 
-  if (loading) {
-    return (
-      <Box
-        sx={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 4
-        }}
-      >
-        <CircularProgress size={32} />
-      </Box>
-    )
-  }
-
-  const MenuContent = () => (
+  // Memoize MenuContent BEFORE any conditional returns
+  const MenuContent = useMemo(() => (
     <Menu
       popoutMenuOffset={{ mainAxis: 23 }}
-      menuItemStyles={menuItemStyles(verticalNavOptions, theme)}
+      menuItemStyles={customMenuItemStyles(verticalNavOptions, theme)}
       renderExpandIcon={({ open }) => <RenderExpandIcon open={open} transitionDuration={transitionDuration} />}
       renderExpandedMenuItemIcon={{ icon: <i className='tabler-circle text-xs' /> }}
       menuSectionStyles={menuSectionStyles(verticalNavOptions, theme)}
@@ -132,10 +117,12 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
 
       {isSuperAdmin && (
         <MenuSection label='Kontrol Akses'>
-          <SubMenu label='Peran & Izin' icon={<i className='tabler-lock' />}>
-            <MenuItem href='/roles'>Peran</MenuItem>
-            <MenuItem href='/permissions'>Izin</MenuItem>
-          </SubMenu>
+          <MenuItem href='/roles' icon={<i className='tabler-shield' />}>
+            Peran
+          </MenuItem>
+          <MenuItem href='/permissions' icon={<i className='tabler-key' />}>
+            Izin
+          </MenuItem>
           <MenuItem href='/users' icon={<i className='tabler-users' />}>
             Pengguna
           </MenuItem>
@@ -150,17 +137,34 @@ const VerticalMenu = ({ dictionary, scrollMenu }: Props) => {
         </MenuSection>
       )}
     </Menu>
-  )
+  ), [isAdmin, isSuperAdmin, verticalNavOptions, theme, transitionDuration])
+
+  // Handle loading state
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 4
+        }}
+      >
+        <CircularProgress size={32} />
+      </Box>
+    )
+  }
 
   return (
     <>
       {isBreakpointReached ? (
         <div className='bs-full overflow-y-auto overflow-x-hidden' onScroll={container => scrollMenu(container, false)}>
-          <MenuContent />
+          {MenuContent}
         </div>
       ) : (
         <PerfectScrollbar options={{ wheelPropagation: false, suppressScrollX: true }} onScrollY={container => scrollMenu(container, true)}>
-          <MenuContent />
+          {MenuContent}
         </PerfectScrollbar>
       )}
     </>

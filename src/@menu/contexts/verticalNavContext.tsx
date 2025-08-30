@@ -27,7 +27,7 @@ export type VerticalNavContextProps = VerticalNavState & {
   toggleVerticalNav: (value?: VerticalNavState['isToggled']) => void
 }
 
-const VerticalNavContext = createContext({} as VerticalNavContextProps)
+const VerticalNavContext = createContext<VerticalNavContextProps | null>(null)
 
 export const VerticalNavProvider = ({ children }: ChildrenType) => {
   // States

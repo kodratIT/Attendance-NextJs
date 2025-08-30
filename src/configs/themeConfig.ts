@@ -51,7 +51,7 @@ export type Config = {
 
 const themeConfig: Config = {
   templateName: ' Klinik Pratama',
-  homePageUrl: `${process.env.homePageUrl}`, // process.env.homePageUrl,
+  homePageUrl: '/home', // Always redirect to /home after login
   settingsCookieName: 'Attendance-Klinik',
   mode: 'system', // 'system', 'light', 'dark'
   skin: 'default', // 'default', 'bordered'

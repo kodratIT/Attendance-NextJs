@@ -8,9 +8,13 @@ const useHorizontalNav = () => {
   // Hooks
   const context = useContext(HorizontalNavContext)
 
-  if (context === undefined) {
-    //TODO: set better error message
-    throw new Error('HorizontalNav Component is required!')
+  // During static generation, provide default values
+  if (context === null || context === undefined) {
+    // Return default values for static generation
+    return {
+      isBreakpointReached: false,
+      updateIsBreakpointReached: () => {}
+    }
   }
 
   return context

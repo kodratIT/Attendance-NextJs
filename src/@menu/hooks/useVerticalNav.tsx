@@ -8,9 +8,26 @@ const useVerticalNav = () => {
   // Hooks
   const context = useContext(VerticalNavContext)
 
-  if (context === undefined) {
-    //TODO: set better error message
-    throw new Error('VerticalNav Component is required!')
+  // During static generation, provide default values
+  if (context === null || context === undefined) {
+    // Return default values for static generation
+    return {
+      width: 260,
+      collapsedWidth: 80,
+      isCollapsed: false,
+      isHovered: false,
+      isToggled: false,
+      isScrollWithContent: false,
+      isBreakpointReached: false,
+      isPopoutWhenCollapsed: false,
+      collapsing: false,
+      expanding: false,
+      transitionDuration: 300,
+      updateVerticalNavState: () => {},
+      collapseVerticalNav: () => {},
+      hoverVerticalNav: () => {},
+      toggleVerticalNav: () => {}
+    }
   }
 
   return context

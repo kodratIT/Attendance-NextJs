@@ -95,16 +95,81 @@ const MenuButton: ForwardRefRenderFunction<HTMLAnchorElement, MenuButtonProps> =
   } else {
     // If there is no component but href is defined, render RouterLink
     if (rest.href) {
+      // Extract onClick to ensure it's properly handled
+      const { onClick, ...linkProps } = rest
       return (
-        <RouterLink ref={ref} className={className} href={rest.href} {...rest}>
+        <RouterLink 
+          ref={ref} 
+          className={className} 
+          href={rest.href} 
+          onClick={(e) => {
+            // Call the original onClick if it exists
+            onClick?.(e)
+            // Prevent default only if href is '#' or empty
+            if (rest.href === '#' || rest.href === '') {
+              e.preventDefault()
+            }
+          }}
+          {...linkProps}
+        >
           {children}
         </RouterLink>
       )
     } else {
+      // Only pass props that are safe for button elements
+      const {
+        onClick,
+        onMouseDown,
+        onMouseUp,
+        onMouseEnter,
+        onMouseLeave,
+        onFocus,
+        onBlur,
+        onKeyDown,
+        onKeyUp,
+        onKeyPress,
+        title,
+        id,
+        'aria-label': ariaLabel,
+        'aria-expanded': ariaExpanded,
+        'aria-controls': ariaControls,
+        'aria-haspopup': ariaHaspopup,
+        tabIndex,
+        style,
+        'data-testid': dataTestId
+      } = rest as any
+      
+      const buttonProps = {
+        onClick,
+        onMouseDown,
+        onMouseUp,
+        onMouseEnter,
+        onMouseLeave,
+        onFocus,
+        onBlur,
+        onKeyDown,
+        onKeyUp,
+        onKeyPress,
+        title,
+        id,
+        'aria-label': ariaLabel,
+        'aria-expanded': ariaExpanded,
+        'aria-controls': ariaControls,
+        'aria-haspopup': ariaHaspopup,
+        tabIndex,
+        style,
+        'data-testid': dataTestId
+      }
+      
       return (
-        <a ref={ref} className={className} {...rest}>
+        <button 
+          ref={ref as any} 
+          className={className} 
+          type="button"
+          {...buttonProps}
+        >
           {children}
-        </a>
+        </button>
       )
     }
   }

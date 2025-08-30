@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { forwardRef, useEffect, useState } from 'react'
+import { forwardRef, useEffect, useState, useMemo } from 'react'
 import type { AnchorHTMLAttributes, ForwardRefRenderFunction, ReactElement, ReactNode } from 'react'
 
 // Next Imports
@@ -98,26 +98,45 @@ const MenuItem: ForwardRefRenderFunction<HTMLLIElement, MenuItemProps> = (props,
   }
 
   // Handle the click event.
-  const handleClick = () => {
-    if (isToggled) {
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Only close navigation on mobile if we're navigating to a page
+    if (isToggled && rest.href && rest.href !== '#') {
       toggleVerticalNav()
     }
   }
 
+  // Extract href in a stable way
+  const href = useMemo(() => {
+    if (rest.href) {
+      return rest.href
+    }
+    if (component && typeof component !== 'string' && component.props?.href) {
+      return component.props.href
+    }
+    return undefined
+  }, [rest.href])
+
   // Change active state when the url changes
   useEffect(() => {
-    const href = rest.href || (component && typeof component !== 'string' && component.props.href)
-
     if (href) {
       // Check if the current url matches any of the children urls
-      if (exactMatch ? pathname === href : activeUrl && pathname.includes(activeUrl)) {
-        setActive(true)
-      } else {
-        setActive(false)
-      }
+      const shouldBeActive = exactMatch 
+        ? pathname === href 
+        : activeUrl 
+          ? pathname.includes(activeUrl) 
+          : false
+      
+      // Only update if the state actually changes
+      setActive(prevActive => {
+        if (prevActive !== shouldBeActive) {
+          return shouldBeActive
+        }
+        return prevActive
+      })
+    } else {
+      setActive(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname])
+  }, [pathname, href, exactMatch, activeUrl])
 
   // Call the onActiveChange callback when the active state changes.
   useUpdateEffect(() => {
@@ -147,7 +166,7 @@ const MenuItem: ForwardRefRenderFunction<HTMLLIElement, MenuItemProps> = (props,
         tabIndex={disabled ? -1 : 0}
         {...rest}
         onClick={e => {
-          handleClick()
+          handleClick(e)
           rest.onClick && rest.onClick(e)
         }}
       >

@@ -11,7 +11,7 @@ export type HorizontalNavContextProps = {
   updateIsBreakpointReached: (isBreakpointReached: boolean) => void
 }
 
-const HorizontalNavContext = createContext({} as HorizontalNavContextProps)
+const HorizontalNavContext = createContext<HorizontalNavContextProps | null>(null)
 
 export const HorizontalNavProvider = ({ children }: ChildrenType) => {
   // States
