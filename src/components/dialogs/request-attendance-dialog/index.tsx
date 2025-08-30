@@ -142,11 +142,11 @@ useEffect(() => {
 
     // Validate input
     if (!selectedUser) {
-      alert('Silakan pilih nama karyawan.');
+      alert('Eh, pilih nama karyawan dulu dong! 😅');
       return;
     }
     if (!keterangan.trim()) {
-      setErrors((prev) => ({ ...prev, keterangan: 'Keterangan tidak boleh kosong.' }));
+      setErrors((prev) => ({ ...prev, keterangan: 'Wajib isi keterangan ya! Jangan dikosongin 🙏' }));
       return;
     }
 
@@ -192,30 +192,59 @@ useEffect(() => {
   };
 
   return (
-    <Dialog fullWidth open={open} onClose={() => setOpen(false)}>
+    <Dialog 
+      fullWidth 
+      open={open} 
+      onClose={() => setOpen(false)}
+      PaperProps={{
+        sx: {
+          borderRadius: 3,
+          boxShadow: (theme) => theme.palette.mode === 'dark' 
+            ? '0 8px 32px rgba(0,0,0,0.4)' 
+            : '0 8px 32px rgba(0,0,0,0.12)',
+          background: (theme) => theme.palette.mode === 'dark'
+            ? 'linear-gradient(145deg, #1e293b 0%, #334155 100%)'
+            : 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)'
+        }
+      }}
+    >
       {state === 'Edit' ? (
         <>
-          <DialogTitle>Checkout Kehadiran</DialogTitle>
-          <DialogContent>
-            <Typography variant="body2" sx={{ mb: 2 }}>
-              Pilih jam checkout dan area checkout.
+          <DialogTitle sx={{ 
+            background: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)',
+            color: 'white',
+            textAlign: 'center',
+            fontWeight: 'bold',
+            fontSize: '1.2rem'
+          }}>
+            📄 Checkout Kehadiran
+          </DialogTitle>
+          <DialogContent sx={{ p: 3 }}>
+            <Typography variant="body2" sx={{ mb: 3, textAlign: 'center', color: 'text.secondary' }}>
+              Isi jam checkout dan pilih area ya! 😊
             </Typography>
             <TextField
               fullWidth
-              label="Jam Checkout"
+              label="⏰ Jam Checkout"
               type="time"
               value={checkOutTime}
               onChange={e => setCheckOutTime(e.target.value)}
               InputLabelProps={{ shrink: true }}
               margin="normal"
+              sx={{ 
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2
+                }
+              }}
             />
             <FormControl fullWidth margin="normal">
-              <InputLabel id="checkout-area-label">Area</InputLabel>
+              <InputLabel id="checkout-area-label">📍 Pilih Area</InputLabel>
               <Select
                 labelId="checkout-area-label"
-                label="Area"
+                label="📍 Pilih Area"
                 value={areaId}
                 onChange={e => setAreaId(String(e.target.value))}
+                sx={{ borderRadius: 2 }}
               >
                 {areas.map(a => (
                   <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
@@ -223,52 +252,117 @@ useEffect(() => {
               </Select>
             </FormControl>
           </DialogContent>
-          <DialogActions className="flex justify-end pbs-4 sm:pli-6 gap-2">
-            <Button onClick={() => setOpen(false)} variant="outlined" color="secondary" disabled={saving}>
-              Batal
+          <DialogActions sx={{ p: 3, gap: 2, justifyContent: 'center' }}>
+            <Button 
+              onClick={() => setOpen(false)} 
+              variant="outlined" 
+              disabled={saving}
+              sx={{ borderRadius: 2, minWidth: 100 }}
+            >
+              ❌ Batal
             </Button>
-            <Button variant="contained" color="primary" onClick={handleSend} disabled={saving || !areaId || !checkOutTime}>
-              {saving ? <CircularProgress color="inherit" size={20} /> : 'Simpan Checkout'}
+            <Button 
+              variant="contained" 
+              onClick={handleSend} 
+              disabled={saving || !areaId || !checkOutTime}
+              sx={{ 
+                borderRadius: 2, 
+                minWidth: 140,
+                background: 'linear-gradient(45deg, #FF6B6B 30%, #4ECDC4 90%)',
+                fontWeight: 'bold'
+              }}
+            >
+              {saving ? <CircularProgress color="inherit" size={20} /> : '🚀 Simpan Checkout'}
             </Button>
           </DialogActions>
         </>
       ) : (
         <>
-          <DialogTitle>{state === 'Add' ? 'Permintaan CheckIn Kehadiran' : 'Permintaan CheckIn Kehadiran'}</DialogTitle>
-          <DialogContent>
+          <DialogTitle sx={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            textAlign: 'center',
+            fontWeight: 'bold',
+            fontSize: '1.2rem'
+          }}>
+            {state === 'Add' ? '🔥 Request CheckIn Absen' : '🔥 Request CheckIn Absen'}
+          </DialogTitle>
+          <DialogContent sx={{ p: 3 }}>
+            <Typography variant="body2" sx={{ mb: 3, textAlign: 'center', color: 'text.secondary' }}>
+              Pilih karyawan yang mau dibuatin absen ya! 📝
+            </Typography>
             <FormControl fullWidth margin="normal">
-              <InputLabel>Nama Karyawan</InputLabel>
-              <Select value={selectedUser?.id || ''} onChange={handleUserChange} displayEmpty>
+              <InputLabel>👤 Pilih Karyawan</InputLabel>
+              <Select 
+                value={selectedUser?.id || ''} 
+                onChange={handleUserChange} 
+                displayEmpty
+                label="👤 Pilih Karyawan"
+                sx={{ borderRadius: 2 }}
+              >
                 {loading ? (
                   <MenuItem disabled>
-                    <CircularProgress size={24} />
+                    <CircularProgress size={24} sx={{ mr: 2 }} />
+                    Loading karyawan...
                   </MenuItem>
                 ) : (
                   users.map((user) => (
                     <MenuItem key={user.id} value={user.id}>
-                      {user.name}
+                      👤 {user.name}
                     </MenuItem>
                   ))
                 )}
               </Select>
-              <TextField
-                label="Keterangan"
-                value={keterangan}
-                onChange={(e) => setKeterangan(e.target.value)}
-                fullWidth
-                margin="normal"
-                required
-                error={!!errors.keterangan}
-                helperText={errors.keterangan}
-              />
             </FormControl>
+            <TextField
+              label="💬 Kasih Keterangan"
+              value={keterangan}
+              onChange={(e) => setKeterangan(e.target.value)}
+              fullWidth
+              margin="normal"
+              required
+              multiline
+              rows={3}
+              error={!!errors.keterangan}
+              helperText={errors.keterangan}
+              placeholder="Ceritain kenapa perlu request absen..."
+              sx={{ 
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2
+                }
+              }}
+            />
           </DialogContent>
-          <DialogActions>
-            <Button onClick={handleSubmit} variant="contained" disabled={saving || !selectedUser}>
-              {saving ? <CircularProgress color="inherit" size={24} /> : state === 'Add' ? 'Kirim' : 'Update'}
+          <DialogActions sx={{ p: 3, gap: 2, justifyContent: 'center' }}>
+            <Button 
+              onClick={() => setOpen(false)} 
+              variant="outlined" 
+              disabled={saving}
+              sx={{ borderRadius: 2, minWidth: 100 }}
+            >
+              ❌ Batal
             </Button>
-            <Button onClick={() => setOpen(false)} variant="outlined" disabled={saving}>
-              Batal
+            <Button 
+              onClick={handleSubmit} 
+              variant="contained" 
+              disabled={saving || !selectedUser}
+              sx={{ 
+                borderRadius: 2, 
+                minWidth: 120,
+                background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
+                fontWeight: 'bold'
+              }}
+            >
+              {saving ? (
+                <>
+                  <CircularProgress color="inherit" size={20} sx={{ mr: 1 }} /> 
+                  Loading...
+                </>
+              ) : (
+                <>
+                  🚀 {state === 'Add' ? 'Kirim Request!' : 'Update!'}
+                </>
+              )}
             </Button>
           </DialogActions>
         </>

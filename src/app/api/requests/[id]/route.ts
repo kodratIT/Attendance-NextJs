@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { firestore as db } from '@/libs/firebase/firebase'
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore'
 import type { RequestDoc } from '@/types/requestTypes'
 import { authOptions } from '@/libs/auth'
+import { applyAttendancePatch, validateAttendancePatch } from '@/utils/attendancePatch'
 
 // Helper function to get user name by ID
 async function getUserNameById(userId: string): Promise<string> {
@@ -147,6 +148,37 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     switch (action) {
       case 'APPROVE':
+        // Validate request data before approving
+        const requestToValidate: RequestDoc = {
+          id: docSnap.id,
+          employeeId: currentData.employeeId || '',
+          type: currentData.type || 'LUPA_ABSEN',
+          subtype: currentData.subtype || null,
+          date: currentData.date || '',
+          requested_time_in: currentData.requested_time_in || null,
+          requested_time_out: currentData.requested_time_out || null,
+          reason: currentData.reason || '',
+          attachments: currentData.attachments || [],
+          status: currentData.status || 'SUBMITTED',
+          reviewerId: currentData.reviewerId || null,
+          reviewedAt: currentData.reviewedAt || null,
+          reviewerNote: currentData.reviewerNote || null,
+          locationId: currentData.locationId || '',
+          locationSnapshot: currentData.locationSnapshot || null,
+          createdAt: currentData.createdAt,
+          updatedAt: currentData.updatedAt,
+          source: currentData.source || 'web',
+        }
+        
+        // Validate attendance patch data
+        const validation = validateAttendancePatch(requestToValidate)
+        if (!validation.valid) {
+          return NextResponse.json({ 
+            success: false, 
+            message: `Cannot approve request: ${validation.message}` 
+          }, { status: 400 })
+        }
+        
         updateData = {
           ...updateData,
           status: 'APPROVED',
@@ -223,11 +255,67 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       updatedAt: updatedData?.updatedAt,
       source: updatedData?.source || 'web',
     }
+    
+    // Apply attendance patch if request was approved
+    let attendancePatchResult: { success: boolean; message: string } | null = null
+    if (action === 'APPROVE') {
+      try {
+        console.log(`🔄 Applying attendance patch for approved request ${id}`)
+        attendancePatchResult = await applyAttendancePatch(updatedRequest)
+        
+        if (attendancePatchResult.success) {
+          console.log(`✅ Attendance patch applied successfully: ${attendancePatchResult.message}`)
+          
+          // Log audit trail for attendance patch
+          try {
+            await addDoc(collection(db, 'audit_logs'), {
+              requestId: id,
+              actorId: reviewerId,
+              action: 'APPLY_ATTENDANCE_PATCH',
+              before_json: null,
+              after_json: {
+                employeeId: updatedRequest.employeeId,
+                date: updatedRequest.date,
+                type: updatedRequest.type,
+                subtype: updatedRequest.subtype,
+                requested_time_in: updatedRequest.requested_time_in,
+                requested_time_out: updatedRequest.requested_time_out
+              },
+              createdAt: serverTimestamp()
+            })
+          } catch (auditError) {
+            console.warn('⚠️ Failed to log audit trail:', auditError)
+          }
+        } else {
+          console.error(`❌ Failed to apply attendance patch: ${attendancePatchResult.message}`)
+          // Note: We don't fail the entire request approval if attendance patch fails
+          // The request is still approved, but attendance data won't be updated
+        }
+      } catch (patchError: any) {
+        console.error('❌ Error applying attendance patch:', patchError)
+        attendancePatchResult = {
+          success: false,
+          message: patchError.message || 'Failed to apply attendance patch'
+        }
+      }
+    }
 
+    // Construct response message
+    let responseMessage = `Request ${action === 'APPROVE' ? 'approved' : action === 'REJECT' ? 'rejected' : action === 'NEEDS_REVISION' ? 'marked for revision' : 'cancelled'} successfully`
+    
+    if (action === 'APPROVE' && attendancePatchResult) {
+      if (attendancePatchResult.success) {
+        responseMessage += `. Attendance data updated: ${attendancePatchResult.message}`
+      } else {
+        responseMessage += `. Warning: ${attendancePatchResult.message}`
+      }
+    }
+    
     return NextResponse.json({ 
       success: true,
       data: updatedRequest,
-      message: `Request ${action === 'APPROVE' ? 'approved' : action === 'REJECT' ? 'rejected' : action === 'NEEDS_REVISION' ? 'marked for revision' : 'cancelled'} successfully`
+      message: responseMessage,
+      attendancePatch: attendancePatchResult
     })
 
   } catch (error: any) {
