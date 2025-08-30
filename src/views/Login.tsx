@@ -86,9 +86,13 @@ const Login = ({ mode }: { mode: SystemMode }) => {
   const [isLoading, setIsLoading] = useState(false)
 
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { settings } = useSettings()
   const theme = useTheme()
   const hidden = useMediaQuery(theme.breakpoints.down('md'))
+  
+  // Get callback URL from query params
+  const callbackUrl = searchParams.get('callbackUrl') || '/home'
 
   const darkImg = '/images/pages/auth-mask-dark.png'
   const lightImg = '/images/pages/auth-mask-light.png'
@@ -124,23 +128,35 @@ const Login = ({ mode }: { mode: SystemMode }) => {
     setIsLoading(true)
     setErrorState(null)
 
-    const res = await signIn('credentials', {
-      email: data.email,
-      password: data.password,
-      redirect: false
-    })
+    try {
+      const res = await signIn('credentials', {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+        callbackUrl: `${window.location.origin}${callbackUrl}`
+      })
 
-    if (res && res.ok && res.error === null) {
-      router.push('/home')
-    } else {
-      if (res?.error) {
-        try {
-          const parsed = JSON.parse(res.error)
-          setErrorState(parsed)
-        } catch {
-          setErrorState({ message: "Login Gagal Email & Password Salah!" })
+      console.log('🔐 SignIn response:', res, 'callbackUrl:', callbackUrl)
+
+      if (res && res.ok && res.error === null) {
+        // Redirect to the intended page or home
+        console.log('✅ Login successful, redirecting to:', callbackUrl)
+        window.location.href = callbackUrl
+      } else {
+        if (res?.error) {
+          try {
+            const parsed = JSON.parse(res.error)
+            setErrorState(parsed)
+          } catch {
+            setErrorState({ message: "Login Gagal Email & Password Salah!" })
+          }
+        } else {
+          setErrorState({ message: "Login Gagal - Silakan coba lagi" })
         }
       }
+    } catch (error) {
+      console.error('❌ Login error:', error)
+      setErrorState({ message: "Terjadi kesalahan saat login" })
     }
 
     setIsLoading(false)

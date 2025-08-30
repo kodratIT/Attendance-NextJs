@@ -64,6 +64,14 @@ declare module 'next-auth/jwt' {
 }
 
 export const authOptions: NextAuthOptions = {
+  // Add secret for production
+  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
+  
+  // Ensure proper URL configuration
+  ...(process.env.NODE_ENV === 'development' && {
+    url: 'http://localhost:3000'
+  }),
+  
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -74,6 +82,7 @@ export const authOptions: NextAuthOptions = {
         try {
           // 🔐 Login ke API lokal
           const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+          console.log('🔍 Auth API_URL:', API_URL)
           const res = await axios.post(`${API_URL}/api/login`, { email, password })
 
           if (res.status !== 200 || !res.data) return null
@@ -147,6 +156,39 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      console.log('🔄 NextAuth redirect - url:', url, 'baseUrl:', baseUrl)
+      
+      // Fallback baseUrl if undefined
+      const fallbackBaseUrl = baseUrl || process.env.NEXTAUTH_URL || 'http://localhost:3000'
+      
+      // Allows relative callback URLs
+      if (url.startsWith('/')) {
+        const redirectUrl = `${fallbackBaseUrl}${url}`
+        console.log('📍 Relative redirect to:', redirectUrl)
+        return redirectUrl
+      }
+      // Allows callback URLs on the same origin
+      try {
+        if (new URL(url).origin === fallbackBaseUrl) {
+          console.log('📍 Same origin redirect to:', url)
+          return url
+        }
+      } catch (e) {
+        console.warn('⚠️ Invalid URL:', url)
+      }
+      
+      // Default redirect to home after successful login
+      const homeUrl = `${fallbackBaseUrl}/home`
+      console.log('🏠 Default redirect to:', homeUrl)
+      return homeUrl
+    },
+
+    async signIn({ user, account, profile }) {
+      // Always allow sign in if we got to this point (authentication was successful)
+      return true
+    },
+
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
